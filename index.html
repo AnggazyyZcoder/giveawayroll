@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giveaway Roller - Sistem Pengecekan Status Reedem</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Montserrat:wght@800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header Section -->
+        <header class="header animate__animated animate__fadeIn">
+            <div class="logo">
+                <i class="fas fa-gift"></i>
+                <span>Giveaway<span class="logo-highlight">Roller</span></span>
+            </div>
+            <div class="theme-toggle">
+                <i class="fas fa-moon"></i>
+            </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="hero animate__animated animate__fadeInUp">
+            <div class="hero-content">
+                <h1 class="hero-title">Welcome Selamat Datang di <span class="highlight">Giveaway Roller</span></h1>
+                <p class="hero-subtitle">Sistem pengecekan status reedem giveaway yang modern dan menarik</p>
+                <div class="scroll-indicator">
+                    <p>Scroll ke bawah untuk memulai</p>
+                    <div class="scroll-arrow">
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-graphics">
+                <div class="floating-gift">
+                    <i class="fas fa-gift"></i>
+                </div>
+                <div class="floating-confetti">
+                    <i class="fas fa-star"></i>
+                </div>
+                <div class="floating-confetti confetti-2">
+                    <i class="fas fa-heart"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Participants Section -->
+        <section class="participants-section animate__animated animate__fadeIn">
+            <h2 class="section-title">Peserta Giveaway <span class="highlight">Part 1</span></h2>
+            <p class="section-subtitle">Berikut adalah daftar peserta yang mengikuti giveaway ini</p>
+            
+            <div class="participants-container">
+                <div class="participants-grid" id="participantsList">
+                    <!-- Participants will be added by JavaScript -->
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <i class="fas fa-info-circle"></i>
+                <p><strong>Tips:</strong> Nama pemenang sudah ditentukan sebelumnya. Klik tombol "Acak" untuk melihat pemenang giveaway!</p>
+            </div>
+        </section>
+
+        <!-- Roller Section -->
+        <section class="roller-section">
+            <h2 class="section-title">Acak <span class="highlight">Pemenang</span></h2>
+            <p class="section-subtitle">Klik tombol di bawah untuk mengacak pemenang giveaway</p>
+            
+            <div class="roller-container">
+                <div class="roller-display">
+                    <div class="roller-screen">
+                        <div class="rolling-text" id="rollingText">
+                            <span>?</span>
+                        </div>
+                        <div class="roller-glow"></div>
+                    </div>
+                    <div class="roller-status">
+                        <p class="status-text" id="statusText">Siap untuk mengacak pemenang</p>
+                    </div>
+                </div>
+                
+                <button class="roll-button" id="rollButton">
+                    <i class="fas fa-random"></i>
+                    <span>Acak Pemenang</span>
+                </button>
+                
+                <div class="roll-info">
+                    <p><i class="fas fa-clock"></i> Proses pengacakan akan berlangsung selama <strong>4 detik</strong></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Winner Section (Initially Hidden) -->
+        <section class="winner-section hidden animate__animated" id="winnerSection">
+            <div class="winner-card">
+                <div class="winner-header">
+                    <h3 class="winner-title">🎉 Selamat Kepada Pemenang 🎉</h3>
+                    <div class="winner-crown">
+                        <i class="fas fa-crown"></i>
+                    </div>
+                </div>
+                
+                <div class="winner-details">
+                    <div class="winner-avatar">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <div class="winner-info">
+                        <p class="winner-label">Pemenang Giveaway Part 1</p>
+                        <h2 class="winner-name" id="winnerName">LOREN</h2>
+                        <p class="winner-number">Nomor Peserta: <span id="winnerNumber">8</span></p>
+                    </div>
+                </div>
+                
+                <div class="winner-actions">
+                    <button class="action-button share-button">
+                        <i class="fas fa-share-alt"></i> Bagikan
+                    </button>
+                    <button class="action-button roll-again-button" id="rollAgainButton">
+                        <i class="fas fa-redo"></i> Acak Lagi
+                    </button>
+                </div>
+                
+                <div class="confetti-container">
+                    <div class="confetti"></div>
+                    <div class="confetti"></div>
+                    <div class="confetti"></div>
+                    <div class="confetti"></div>
+                    <div class="confetti"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <i class="fas fa-gift"></i>
+                    <span>GiveawayRoller</span>
+                </div>
+                <p class="footer-text">Sistem pengacakan pemenang giveaway yang adil dan transparan</p>
+                <p class="copyright">© Copyright ❤ 2025 Giveaway Roller. All rights reserved.</p>
+                <div class="footer-version">
+                    <span class="version-badge">PRO VERSION</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

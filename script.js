@@ -1,21 +1,11 @@
 // Tokens API
 const tokens = [
-    "f7ca592b29b7f9eca59b352695a80e2a0cb9d1a0511b99bab913c947f1456c8b",
-    "1e51b47b5526318a1b091ce809351831c283ac3508c1cc058d19c7dc153a6b1f",
-    "1268a2225806ec952aefe8eb950687c9b3d336de719e4b3245c2be3150003d09",
-    "abd44b8d6fe5f877a4d184e0df08e29370f2d49414853a75a5d6d46e758c84c7",
-    "84b6ed6ca89973bb531906f2cca7c1251424a8cac49604180cbf87977df8f62e",
-    "4c107ec4076a436a4de96a6d5c337896ba79c991685896d7cff242d8107343ad",
-    "04f74d31946dbab25f603e412686d25a50d6c2ceb4d7ee2d3c37bca1ee68f720",
-    "e83a0190933eb8e48429fec6d64cf4587c6d7fe50c932c8b837f9c2ef2b2d67c",
-    "9c0807ac50818cb10cb9c4d7d58f33e15285e7924b32aa2ab41129eb581b49ce",
-    "56ab13daaca55ddd1d23d283065999ef205df6a21b7590dd214306ae8ada1739",
-    "891bb0e6b6fdd0a218d15374898b230be150622c393aa40a35c44c76dfc2fb84",
-    "251471094f0f614c8112489a4c24140198438d235864c6fde6b0552e9e170993"
+    "f7ca592b29b7f9eca59b352695a80e2a0cb9d1a0511b99bab913c947f1456c8b"
 ];
 
 let currentTokenIndex = 0;
 let successCount = 0;
+let isProcessing = false;
 
 // DOM Elements
 const loadingScreen = document.getElementById('loadingScreen');
@@ -51,11 +41,26 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Set up intersection observer for fade-in animations
         setupIntersectionObserver();
+        
+        // Pre-fill with example data for testing
+        prefillExampleData();
     }, 2000);
     
     // Initialize event listeners
     initEventListeners();
 });
+
+// Pre-fill example data for testing
+function prefillExampleData() {
+    // Example WhatsApp channel link
+    postUrlInput.value = 'https://whatsapp.com/channel/0029VbB2Ajh...';
+    
+    // Example emoji
+    emojiInput.value = '😂';
+    
+    // Update preview
+    updateEmojiPreview();
+}
 
 // Animate welcome text
 function animateWelcomeText() {
@@ -109,7 +114,10 @@ function initEventListeners() {
             if (currentValue === '') {
                 emojiInput.value = emoji;
             } else {
-                emojiInput.value = currentValue + ',' + emoji;
+                // Remove trailing comma if exists
+                const cleanValue = currentValue.endsWith(',') ? 
+                    currentValue.slice(0, -1) : currentValue;
+                emojiInput.value = cleanValue + ',' + emoji;
             }
             
             updateEmojiPreview();
@@ -130,6 +138,19 @@ function initEventListeners() {
     
     // Theme toggle
     document.querySelector('.theme-toggle').addEventListener('click', toggleTheme);
+    
+    // Enter key support
+    postUrlInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            handleReact();
+        }
+    });
+    
+    emojiInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            handleReact();
+        }
+    });
 }
 
 // Update emoji preview
@@ -151,12 +172,18 @@ function updateEmojiPreview() {
 
 // Handle react button click
 async function handleReact() {
+    // Prevent multiple simultaneous requests
+    if (isProcessing) {
+        showNotification('Sedang memproses reaksi sebelumnya...', 'info');
+        return;
+    }
+    
     const postUrl = postUrlInput.value.trim();
     const emojis = emojiInput.value.trim();
     
     // Validate inputs
     if (!postUrl) {
-        showNotification('Masukkan link saluhan WhatsApp terlebih dahulu!', 'error');
+        showNotification('Masukkan link saluran WhatsApp terlebih dahulu!', 'error');
         postUrlInput.focus();
         return;
     }
@@ -167,13 +194,19 @@ async function handleReact() {
         return;
     }
     
-    // Validate URL format
-    if (!postUrl.includes('whatsapp.com')) {
-        showNotification('Link harus dari WhatsApp (whatsapp.com)', 'error');
-        return;
+    // Validate URL format - more flexible validation
+    if (!postUrl.includes('whatsapp.com') && !postUrl.includes('whatsapp')) {
+        const proceed = confirm('Link tidak terdeteksi sebagai link WhatsApp. Lanjutkan?');
+        if (!proceed) {
+            return;
+        }
     }
     
+    // Set processing flag
+    isProcessing = true;
+    
     // Show loading state
+    const originalText = reactBtn.innerHTML;
     reactBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
     reactBtn.disabled = true;
     
@@ -196,10 +229,24 @@ async function handleReact() {
                 postUrl: postUrl,
                 emojis: emojiArray,
                 timestamp: new Date().toLocaleTimeString(),
-                tokenUsed: currentTokenIndex
+                tokenUsed: currentTokenIndex,
+                data: result.data
             });
         } else {
-            showNotification(`Gagal mengirim reaksi: ${result.error.message || result.error}`, 'error');
+            // Handle specific error cases
+            let errorMessage = 'Gagal mengirim reaksi';
+            
+            if (result.error === 'All tokens are limited') {
+                errorMessage = 'Semua token sedang limit, coba lagi nanti';
+            } else if (result.status === 402) {
+                errorMessage = 'Token limit, sistem otomatis ganti token';
+            } else if (result.error && typeof result.error === 'object' && result.error.message) {
+                errorMessage = result.error.message;
+            } else if (typeof result.error === 'string') {
+                errorMessage = result.error;
+            }
+            
+            showNotification(errorMessage, 'error');
             
             // Add to results history
             addToResults({
@@ -207,7 +254,8 @@ async function handleReact() {
                 postUrl: postUrl,
                 emojis: emojiArray,
                 timestamp: new Date().toLocaleTimeString(),
-                error: result.error.message || result.error
+                error: errorMessage,
+                status: result.status
             });
         }
         
@@ -216,7 +264,13 @@ async function handleReact() {
         
     } catch (error) {
         console.error('Error:', error);
-        showNotification('Terjadi kesalahan saat memproses permintaan', 'error');
+        
+        // Handle network errors specifically
+        if (error.message.includes('Network Error') || error.message.includes('Failed to fetch')) {
+            showNotification('Koneksi jaringan bermasalah. Periksa koneksi internet Anda.', 'error');
+        } else {
+            showNotification('Terjadi kesalahan saat memproses permintaan', 'error');
+        }
         
         // Add to results history
         addToResults({
@@ -224,27 +278,43 @@ async function handleReact() {
             postUrl: postUrl,
             emojis: emojiArray,
             timestamp: new Date().toLocaleTimeString(),
-            error: error.message
+            error: error.message || 'Unknown error'
         });
     } finally {
         // Reset button state
-        reactBtn.innerHTML = '<i class="fas fa-rocket"></i> React Now';
+        reactBtn.innerHTML = originalText;
         reactBtn.disabled = false;
+        isProcessing = false;
     }
 }
 
-// API function to react to post
+// Improved API function to react to post with better error handling
 async function reactToPost(postUrl, emojis) {
     let attempts = 0;
     const maxAttempts = tokens.length;
     
+    // Show initial attempt status
+    console.log(`🚀 Starting reaction attempt to: ${postUrl.substring(0, 50)}...`);
+    console.log(`🎭 Emojis: ${emojis.join(', ')}`);
+    
     while (attempts < maxAttempts) {
         const apiKey = tokens[currentTokenIndex];
         
+        // Update UI with current token attempt
+        showNotification(`Mencoba dengan Token ${currentTokenIndex + 1}...`, 'info');
+        
         try {
-            console.log(`🎯 Reacting to: ${postUrl}`);
-            console.log(`🎭 With emojis: ${emojis}`);
-            console.log(`🔑 Using token index: ${currentTokenIndex}`);
+            console.log(`🔑 Attempt ${attempts + 1}: Using token index ${currentTokenIndex}`);
+            
+            // Prepare request data
+            const requestData = {
+                post_link: postUrl,
+                reacts: Array.isArray(emojis) ? emojis : [emojis]
+            };
+            
+            // Configure request with timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
             
             const response = await axios({
                 method: 'POST',
@@ -262,50 +332,97 @@ async function reactToPost(postUrl, emojis) {
                     'sec-fetch-dest': 'empty',
                     'sec-fetch-mode': 'cors',
                     'sec-fetch-site': 'cross-site',
-                    'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36'
+                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 },
-                data: {
-                    post_link: postUrl,
-                    reacts: Array.isArray(emojis) ? emojis : [emojis]
-                }
+                data: requestData,
+                signal: controller.signal,
+                timeout: 10000
             });
             
-            console.log('✅ Success!');
+            clearTimeout(timeoutId);
+            
+            console.log('✅ Success! Response:', response.data);
+            
+            // Move to next token for next request
+            currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+            
             return {
                 success: true,
                 data: response.data
             };
             
         } catch (error) {
-            console.log(`❌ Token ${currentTokenIndex} failed:`, error.response?.data || error.message);
+            clearTimeout(timeoutId);
             
-            if (error.response && error.response.status === 402) {
-                currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
-                attempts++;
-                console.log(`🔄 Switching to token index: ${currentTokenIndex}`);
-                continue;
+            // Handle specific error types
+            if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+                console.log(`⏰ Timeout on token ${currentTokenIndex}`);
+                showNotification(`Token ${currentTokenIndex + 1} timeout, mencoba token lain...`, 'warning');
+            } else if (error.name === 'AbortError') {
+                console.log(`🛑 Request aborted for token ${currentTokenIndex}`);
+                showNotification(`Request dibatalkan, mencoba token lain...`, 'warning');
+            } else if (error.response) {
+                // Server responded with error status
+                console.log(`❌ Token ${currentTokenIndex} failed with status ${error.response.status}:`, error.response.data);
+                
+                if (error.response.status === 402) {
+                    console.log(`🔄 Token ${currentTokenIndex} limit (402), switching token`);
+                    showNotification(`Token ${currentTokenIndex + 1} limit, ganti token...`, 'warning');
+                    
+                    currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+                    attempts++;
+                    continue;
+                }
+                
+                if (error.response.data?.message?.includes('limit') || error.response.data?.message?.includes('Limit')) {
+                    console.log(`🔄 Token ${currentTokenIndex} limited, switching token`);
+                    showNotification(`Token ${currentTokenIndex + 1} limited, ganti token...`, 'warning');
+                    
+                    currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+                    attempts++;
+                    continue;
+                }
+                
+                // Return the error for other status codes
+                return {
+                    success: false,
+                    error: error.response.data,
+                    status: error.response.status
+                };
+                
+            } else if (error.request) {
+                // Request was made but no response received
+                console.log(`🌐 Network error with token ${currentTokenIndex}:`, error.message);
+                
+                // Check for CORS errors specifically
+                if (error.message.includes('Network Error') || error.message.includes('Failed to fetch')) {
+                    console.log(`🔄 CORS/Network issue, trying next token`);
+                    showNotification(`Masalah jaringan dengan token ${currentTokenIndex + 1}, coba token lain...`, 'warning');
+                }
+            } else {
+                // Something else happened
+                console.log(`❓ Unknown error with token ${currentTokenIndex}:`, error.message);
             }
             
-            if (error.response?.data?.message?.includes('limit') || error.response?.data?.message?.includes('Limit')) {
-                currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
-                attempts++;
-                console.log(`🔄 Token limit, switching to index: ${currentTokenIndex}`);
-                continue;
+            // Try next token on any error
+            currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+            attempts++;
+            
+            // If we've tried all tokens, break
+            if (attempts >= maxAttempts) {
+                console.log('❌ All tokens failed!');
+                break;
             }
             
-            console.log('❌ Failed!');
-            return {
-                success: false,
-                error: error.response?.data || error.message,
-                status: error.response?.status
-            };
+            // Small delay before trying next token
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
     }
     
-    console.log('❌ All tokens limited!');
+    console.log('❌ All tokens limited or failed!');
     return {
         success: false,
-        error: 'All tokens are limited',
+        error: 'All tokens are limited or failed',
         status: 402
     };
 }
@@ -327,6 +444,11 @@ function addToResults(result) {
         result.emojis.join('') : 
         (result.emojis || '');
     
+    // Truncate URL for display
+    const displayUrl = result.postUrl.length > 40 ? 
+        result.postUrl.substring(0, 40) + '...' : 
+        result.postUrl;
+    
     // Create result HTML
     resultElement.innerHTML = `
         <div class="result-header">
@@ -338,7 +460,7 @@ function addToResults(result) {
         <div class="result-details">
             <div class="result-detail">
                 <i class="fas fa-link"></i>
-                <span>${result.postUrl.substring(0, 40)}${result.postUrl.length > 40 ? '...' : ''}</span>
+                <span title="${result.postUrl}">${displayUrl}</span>
             </div>
             <div class="result-detail">
                 <i class="fas fa-smile"></i>
@@ -353,7 +475,14 @@ function addToResults(result) {
         ${!result.success ? `
         <div class="result-error">
             <i class="fas fa-exclamation-circle"></i>
-            <span>${typeof result.error === 'string' ? result.error : JSON.stringify(result.error)}</span>
+            <span>${typeof result.error === 'string' ? result.error : 
+                result.error && result.error.message ? result.error.message : 
+                JSON.stringify(result.error)}</span>
+        </div>` : ''}
+        ${result.success && result.data ? `
+        <div class="result-success">
+            <i class="fas fa-check-circle"></i>
+            <span>Reaction ID: ${result.data.id || 'N/A'}</span>
         </div>` : ''}
     `;
     
@@ -372,6 +501,11 @@ function addToResults(result) {
     if (resultsList.children.length > 10) {
         resultsList.removeChild(resultsList.lastChild);
     }
+    
+    // Scroll to results
+    setTimeout(() => {
+        resultsList.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 300);
 }
 
 // Clear input fields
@@ -387,10 +521,16 @@ function clearFields() {
     }, 300);
     
     showNotification('Fields cleared', 'info');
+    postUrlInput.focus();
 }
 
 // Show notification
 function showNotification(message, type) {
+    // Remove existing notifications
+    document.querySelectorAll('.notification').forEach(notification => {
+        notification.remove();
+    });
+    
     // Create notification element
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
@@ -400,7 +540,9 @@ function showNotification(message, type) {
         top: 20px;
         right: 20px;
         padding: 1rem 1.5rem;
-        background-color: ${type === 'success' ? '#06d6a0' : type === 'error' ? '#ef476f' : '#ffd166'};
+        background-color: ${type === 'success' ? '#06d6a0' : 
+                         type === 'error' ? '#ef476f' : 
+                         type === 'warning' ? '#ffd166' : '#8a2be2'};
         color: white;
         border-radius: var(--border-radius);
         font-weight: 600;
@@ -409,6 +551,19 @@ function showNotification(message, type) {
         transform: translateX(100%);
         opacity: 0;
         transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.1), opacity 0.5s ease;
+        max-width: 400px;
+        word-wrap: break-word;
+    `;
+    
+    // Add icon based on type
+    let icon = 'info-circle';
+    if (type === 'success') icon = 'check-circle';
+    if (type === 'error') icon = 'exclamation-circle';
+    if (type === 'warning') icon = 'exclamation-triangle';
+    
+    notification.innerHTML = `
+        <i class="fas fa-${icon}" style="margin-right: 10px;"></i>
+        ${message}
     `;
     
     // Add to document
@@ -420,7 +575,8 @@ function showNotification(message, type) {
         notification.style.opacity = '1';
     }, 10);
     
-    // Remove after 3 seconds
+    // Remove after appropriate time
+    const duration = type === 'error' ? 5000 : 3000;
     setTimeout(() => {
         notification.style.transform = 'translateX(100%)';
         notification.style.opacity = '0';
@@ -430,7 +586,7 @@ function showNotification(message, type) {
                 document.body.removeChild(notification);
             }
         }, 500);
-    }, 3000);
+    }, duration);
 }
 
 // Toggle theme (for future expansion)
@@ -498,3 +654,48 @@ function setupIntersectionObserver() {
         observer.observe(element);
     });
 }
+
+// Add connection status monitoring
+function monitorConnection() {
+    const connectionStatus = document.createElement('div');
+    connectionStatus.id = 'connectionStatus';
+    connectionStatus.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 8px 15px;
+        background-color: #06d6a0;
+        color: white;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        opacity: 0.9;
+    `;
+    
+    connectionStatus.innerHTML = `
+        <i class="fas fa-wifi"></i>
+        <span>Online</span>
+    `;
+    
+    document.body.appendChild(connectionStatus);
+    
+    // Update connection status
+    window.addEventListener('online', () => {
+        connectionStatus.innerHTML = `<i class="fas fa-wifi"></i><span>Online</span>`;
+        connectionStatus.style.backgroundColor = '#06d6a0';
+    });
+    
+    window.addEventListener('offline', () => {
+        connectionStatus.innerHTML = `<i class="fas fa-wifi-slash"></i><span>Offline</span>`;
+        connectionStatus.style.backgroundColor = '#ef476f';
+        showNotification('Anda sedang offline. Periksa koneksi internet.', 'error');
+    });
+}
+
+// Initialize connection monitoring
+monitorConnection();

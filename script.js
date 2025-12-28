@@ -1,6 +1,17 @@
 // Tokens API
 const tokens = [
-    "f7ca592b29b7f9eca59b352695a80e2a0cb9d1a0511b99bab913c947f1456c8b"
+    "f7ca592b29b7f9eca59b352695a80e2a0cb9d1a0511b99bab913c947f1456c8b",
+    "1e51b47b5526318a1b091ce809351831c283ac3508c1cc058d19c7dc153a6b1f",
+    "1268a2225806ec952aefe8eb950687c9b3d336de719e4b3245c2be3150003d09",
+    "abd44b8d6fe5f877a4d184e0df08e29370f2d49414853a75a5d6d46e758c84c7",
+    "84b6ed6ca89973bb531906f2cca7c1251424a8cac49604180cbf87977df8f62e",
+    "4c107ec4076a436a4de96a6d5c337896ba79c991685896d7cff242d8107343ad",
+    "04f74d31946dbab25f603e412686d25a50d6c2ceb4d7ee2d3c37bca1ee68f720",
+    "e83a0190933eb8e48429fec6d64cf4587c6d7fe50c932c8b837f9c2ef2b2d67c",
+    "9c0807ac50818cb10cb9c4d7d58f33e15285e7924b32aa2ab41129eb581b49ce",
+    "56ab13daaca55ddd1d23d283065999ef205df6a21b7590dd214306ae8ada1739",
+    "891bb0e6b6fdd0a218d15374898b230be150622c393aa40a35c44c76dfc2fb84",
+    "251471094f0f614c8112489a4c24140198438d235864c6fde6b0552e9e170993"
 ];
 
 let currentTokenIndex = 0;
@@ -44,6 +55,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Pre-fill with example data for testing
         prefillExampleData();
+        
+        // Initialize connection monitoring
+        monitorConnection();
     }, 2000);
     
     // Initialize event listeners
@@ -216,8 +230,8 @@ async function handleReact() {
         .filter(e => e.length > 0);
     
     try {
-        // Call API to react to post
-        const result = await reactToPost(postUrl, emojiArray);
+        // Call API to react to post - menggunakan fetch sebagai fallback
+        const result = await reactToPostWithFallback(postUrl, emojiArray);
         
         if (result.success) {
             showNotification('Reaksi berhasil dikirim!', 'success');
@@ -229,7 +243,7 @@ async function handleReact() {
                 postUrl: postUrl,
                 emojis: emojiArray,
                 timestamp: new Date().toLocaleTimeString(),
-                tokenUsed: currentTokenIndex,
+                tokenUsed: result.tokenIndex,
                 data: result.data
             });
         } else {
@@ -266,7 +280,7 @@ async function handleReact() {
         console.error('Error:', error);
         
         // Handle network errors specifically
-        if (error.message.includes('Network Error') || error.message.includes('Failed to fetch')) {
+        if (error.message && (error.message.includes('Network Error') || error.message.includes('Failed to fetch') || error.message.includes('timeout'))) {
             showNotification('Koneksi jaringan bermasalah. Periksa koneksi internet Anda.', 'error');
         } else {
             showNotification('Terjadi kesalahan saat memproses permintaan', 'error');
@@ -288,8 +302,8 @@ async function handleReact() {
     }
 }
 
-// Improved API function to react to post with better error handling
-async function reactToPost(postUrl, emojis) {
+// Enhanced API function with fetch as primary and axios as fallback
+async function reactToPostWithFallback(postUrl, emojis) {
     let attempts = 0;
     const maxAttempts = tokens.length;
     
@@ -297,134 +311,178 @@ async function reactToPost(postUrl, emojis) {
     console.log(`🚀 Starting reaction attempt to: ${postUrl.substring(0, 50)}...`);
     console.log(`🎭 Emojis: ${emojis.join(', ')}`);
     
-    while (attempts < maxAttempts) {
-        const apiKey = tokens[currentTokenIndex];
+    // Loop through tokens
+    for (let i = 0; i < maxAttempts; i++) {
+        const tokenIndex = (currentTokenIndex + i) % tokens.length;
+        const apiKey = tokens[tokenIndex];
         
-        // Update UI with current token attempt
-        showNotification(`Mencoba dengan Token ${currentTokenIndex + 1}...`, 'info');
+        console.log(`🔑 Attempt ${i + 1}: Using token index ${tokenIndex}`);
+        showNotification(`Mencoba dengan Token ${tokenIndex + 1}...`, 'info');
         
         try {
-            console.log(`🔑 Attempt ${attempts + 1}: Using token index ${currentTokenIndex}`);
+            // Try with fetch first
+            const result = await makeRequestWithFetch(postUrl, emojis, apiKey, tokenIndex);
             
-            // Prepare request data
-            const requestData = {
-                post_link: postUrl,
-                reacts: Array.isArray(emojis) ? emojis : [emojis]
-            };
-            
-            // Configure request with timeout
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-            
-            const response = await axios({
-                method: 'POST',
-                url: `https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post?apiKey=${apiKey}`,
-                headers: {
-                    'authority': 'foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app',
-                    'accept': 'application/json, text/plain, */*',
-                    'accept-language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
-                    'content-type': 'application/json',
-                    'origin': 'https://asitha.top',
-                    'referer': 'https://asitha.top/',
-                    'sec-ch-ua': '"Chromium";v="139", "Not;A=Brand";v="99"',
-                    'sec-ch-ua-mobile': '?1',
-                    'sec-ch-ua-platform': '"Android"',
-                    'sec-fetch-dest': 'empty',
-                    'sec-fetch-mode': 'cors',
-                    'sec-fetch-site': 'cross-site',
-                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                },
-                data: requestData,
-                signal: controller.signal,
-                timeout: 10000
-            });
-            
-            clearTimeout(timeoutId);
-            
-            console.log('✅ Success! Response:', response.data);
-            
-            // Move to next token for next request
-            currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+            // Update current token index for next request
+            currentTokenIndex = (tokenIndex + 1) % tokens.length;
             
             return {
                 success: true,
-                data: response.data
+                data: result,
+                tokenIndex: tokenIndex
             };
             
         } catch (error) {
-            clearTimeout(timeoutId);
+            console.log(`❌ Token ${tokenIndex} failed:`, error.message || error);
             
-            // Handle specific error types
-            if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-                console.log(`⏰ Timeout on token ${currentTokenIndex}`);
-                showNotification(`Token ${currentTokenIndex + 1} timeout, mencoba token lain...`, 'warning');
-            } else if (error.name === 'AbortError') {
-                console.log(`🛑 Request aborted for token ${currentTokenIndex}`);
-                showNotification(`Request dibatalkan, mencoba token lain...`, 'warning');
-            } else if (error.response) {
-                // Server responded with error status
-                console.log(`❌ Token ${currentTokenIndex} failed with status ${error.response.status}:`, error.response.data);
-                
-                if (error.response.status === 402) {
-                    console.log(`🔄 Token ${currentTokenIndex} limit (402), switching token`);
-                    showNotification(`Token ${currentTokenIndex + 1} limit, ganti token...`, 'warning');
-                    
-                    currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
-                    attempts++;
-                    continue;
-                }
-                
-                if (error.response.data?.message?.includes('limit') || error.response.data?.message?.includes('Limit')) {
-                    console.log(`🔄 Token ${currentTokenIndex} limited, switching token`);
-                    showNotification(`Token ${currentTokenIndex + 1} limited, ganti token...`, 'warning');
-                    
-                    currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
-                    attempts++;
-                    continue;
-                }
-                
-                // Return the error for other status codes
-                return {
-                    success: false,
-                    error: error.response.data,
-                    status: error.response.status
-                };
-                
-            } else if (error.request) {
-                // Request was made but no response received
-                console.log(`🌐 Network error with token ${currentTokenIndex}:`, error.message);
-                
-                // Check for CORS errors specifically
-                if (error.message.includes('Network Error') || error.message.includes('Failed to fetch')) {
-                    console.log(`🔄 CORS/Network issue, trying next token`);
-                    showNotification(`Masalah jaringan dengan token ${currentTokenIndex + 1}, coba token lain...`, 'warning');
-                }
-            } else {
-                // Something else happened
-                console.log(`❓ Unknown error with token ${currentTokenIndex}:`, error.message);
+            // Check if we should try next token
+            if (error.message && (
+                error.message.includes('limit') || 
+                error.message.includes('Limit') || 
+                error.message.includes('402') ||
+                error.message.includes('timeout') ||
+                error.message.includes('network') ||
+                error.message.includes('Network')
+            )) {
+                // Try next token
+                showNotification(`Token ${tokenIndex + 1} gagal, mencoba token lain...`, 'warning');
+                continue;
             }
             
-            // Try next token on any error
-            currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
-            attempts++;
-            
-            // If we've tried all tokens, break
-            if (attempts >= maxAttempts) {
-                console.log('❌ All tokens failed!');
-                break;
-            }
-            
-            // Small delay before trying next token
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // For other errors, return the failure
+            return {
+                success: false,
+                error: error.message || 'Unknown error',
+                status: error.status || 500
+            };
         }
     }
     
-    console.log('❌ All tokens limited or failed!');
+    // If all tokens failed
+    console.log('❌ All tokens failed!');
     return {
         success: false,
         error: 'All tokens are limited or failed',
         status: 402
     };
+}
+
+// Make request using Fetch API
+async function makeRequestWithFetch(postUrl, emojis, apiKey, tokenIndex) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    
+    try {
+        const apiUrl = `https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post?apiKey=${apiKey}`;
+        
+        console.log(`📤 Making request to: ${apiUrl.substring(0, 60)}...`);
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Origin': 'https://asitha.top',
+                'Referer': 'https://asitha.top/'
+            },
+            body: JSON.stringify({
+                post_link: postUrl,
+                reacts: Array.isArray(emojis) ? emojis : [emojis]
+            }),
+            signal: controller.signal,
+            mode: 'cors'
+        });
+        
+        clearTimeout(timeoutId);
+        
+        // Check if response is ok
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorData;
+            try {
+                errorData = JSON.parse(errorText);
+            } catch {
+                errorData = { message: errorText || `HTTP ${response.status}` };
+            }
+            
+            throw {
+                message: errorData.message || `HTTP ${response.status}`,
+                status: response.status,
+                data: errorData
+            };
+        }
+        
+        const data = await response.json();
+        console.log('✅ Success! Response:', data);
+        
+        return data;
+        
+    } catch (error) {
+        clearTimeout(timeoutId);
+        
+        // Re-throw the error with proper formatting
+        throw {
+            message: error.message || 'Request failed',
+            status: error.status || 0,
+            data: error.data || null
+        };
+    }
+}
+
+// Alternative function using Axios (as fallback)
+async function makeRequestWithAxios(postUrl, emojis, apiKey, tokenIndex) {
+    try {
+        // Make sure axios is loaded
+        if (typeof axios === 'undefined') {
+            throw new Error('Axios not loaded');
+        }
+        
+        const apiUrl = `https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post?apiKey=${apiKey}`;
+        
+        const response = await axios({
+            method: 'POST',
+            url: apiUrl,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Origin': 'https://asitha.top',
+                'Referer': 'https://asitha.top/'
+            },
+            data: {
+                post_link: postUrl,
+                reacts: Array.isArray(emojis) ? emojis : [emojis]
+            },
+            timeout: 15000
+        });
+        
+        console.log('✅ Success with Axios! Response:', response.data);
+        return response.data;
+        
+    } catch (error) {
+        console.error('❌ Axios request failed:', error);
+        
+        if (error.response) {
+            throw {
+                message: error.response.data?.message || `HTTP ${error.response.status}`,
+                status: error.response.status,
+                data: error.response.data
+            };
+        } else if (error.request) {
+            throw {
+                message: 'No response received from server',
+                status: 0,
+                data: null
+            };
+        } else {
+            throw {
+                message: error.message || 'Axios setup error',
+                status: 0,
+                data: null
+            };
+        }
+    }
 }
 
 // Add result to history
@@ -482,13 +540,20 @@ function addToResults(result) {
         ${result.success && result.data ? `
         <div class="result-success">
             <i class="fas fa-check-circle"></i>
-            <span>Reaction ID: ${result.data.id || 'N/A'}</span>
+            <span>Success: ${result.data.message || 'Reaction sent successfully'}</span>
         </div>` : ''}
     `;
     
     // Add animation delay based on existing results
     const existingResults = resultsList.children.length;
-    resultElement.style.animationDelay = `${existingResults * 0.1}s`;
+    const delay = existingResults * 0.1;
+    resultElement.style.animationDelay = `${delay}s`;
+    
+    // Reset animation for new element
+    resultElement.style.animation = 'none';
+    setTimeout(() => {
+        resultElement.style.animation = `slideInRight 0.5s ease ${delay}s forwards`;
+    }, 10);
     
     // Add to top of results list
     if (resultsList.firstChild) {
@@ -534,7 +599,18 @@ function showNotification(message, type) {
     // Create notification element
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
-    notification.textContent = message;
+    
+    // Add icon based on type
+    let icon = 'info-circle';
+    if (type === 'success') icon = 'check-circle';
+    if (type === 'error') icon = 'exclamation-circle';
+    if (type === 'warning') icon = 'exclamation-triangle';
+    
+    notification.innerHTML = `
+        <i class="fas fa-${icon}" style="margin-right: 10px;"></i>
+        <span>${message}</span>
+    `;
+    
     notification.style.cssText = `
         position: fixed;
         top: 20px;
@@ -553,17 +629,8 @@ function showNotification(message, type) {
         transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.1), opacity 0.5s ease;
         max-width: 400px;
         word-wrap: break-word;
-    `;
-    
-    // Add icon based on type
-    let icon = 'info-circle';
-    if (type === 'success') icon = 'check-circle';
-    if (type === 'error') icon = 'exclamation-circle';
-    if (type === 'warning') icon = 'exclamation-triangle';
-    
-    notification.innerHTML = `
-        <i class="fas fa-${icon}" style="margin-right: 10px;"></i>
-        ${message}
+        display: flex;
+        align-items: center;
     `;
     
     // Add to document
@@ -589,7 +656,7 @@ function showNotification(message, type) {
     }, duration);
 }
 
-// Toggle theme (for future expansion)
+// Toggle theme
 function toggleTheme() {
     const themeToggle = document.querySelector('.theme-toggle i');
     
@@ -655,7 +722,7 @@ function setupIntersectionObserver() {
     });
 }
 
-// Add connection status monitoring
+// Monitor connection status
 function monitorConnection() {
     const connectionStatus = document.createElement('div');
     connectionStatus.id = 'connectionStatus';
@@ -675,6 +742,7 @@ function monitorConnection() {
         align-items: center;
         gap: 8px;
         opacity: 0.9;
+        transition: all 0.3s ease;
     `;
     
     connectionStatus.innerHTML = `
@@ -685,17 +753,86 @@ function monitorConnection() {
     document.body.appendChild(connectionStatus);
     
     // Update connection status
-    window.addEventListener('online', () => {
-        connectionStatus.innerHTML = `<i class="fas fa-wifi"></i><span>Online</span>`;
-        connectionStatus.style.backgroundColor = '#06d6a0';
-    });
+    const updateConnectionStatus = (isOnline) => {
+        if (isOnline) {
+            connectionStatus.innerHTML = `<i class="fas fa-wifi"></i><span>Online</span>`;
+            connectionStatus.style.backgroundColor = '#06d6a0';
+        } else {
+            connectionStatus.innerHTML = `<i class="fas fa-wifi-slash"></i><span>Offline</span>`;
+            connectionStatus.style.backgroundColor = '#ef476f';
+            showNotification('Anda sedang offline. Periksa koneksi internet.', 'error');
+        }
+    };
     
-    window.addEventListener('offline', () => {
-        connectionStatus.innerHTML = `<i class="fas fa-wifi-slash"></i><span>Offline</span>`;
-        connectionStatus.style.backgroundColor = '#ef476f';
-        showNotification('Anda sedang offline. Periksa koneksi internet.', 'error');
-    });
+    // Initial check
+    updateConnectionStatus(navigator.onLine);
+    
+    // Listen for connection changes
+    window.addEventListener('online', () => updateConnectionStatus(true));
+    window.addEventListener('offline', () => updateConnectionStatus(false));
 }
 
-// Initialize connection monitoring
-monitorConnection();
+// Test API connection
+async function testAPIConnection() {
+    try {
+        const testUrl = 'https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app';
+        const response = await fetch(testUrl, { 
+            method: 'HEAD',
+            mode: 'no-cors'
+        });
+        
+        // If we can make the request (even with no-cors), the server is reachable
+        console.log('✅ API server is reachable');
+        return true;
+    } catch (error) {
+        console.log('❌ API server may be unreachable:', error.message);
+        showNotification('API server mungkin sedang offline', 'warning');
+        return false;
+    }
+}
+
+// Initialize API test on load
+setTimeout(() => {
+    testAPIConnection();
+}, 3000);
+
+// Add CSS for result items
+const style = document.createElement('style');
+style.textContent = `
+    .result-item {
+        animation: slideInRight 0.5s ease forwards;
+        opacity: 0;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    
+    .result-error, .result-success {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+    }
+    
+    .result-error {
+        background-color: rgba(239, 71, 111, 0.1);
+        color: #ef476f;
+    }
+    
+    .result-success {
+        background-color: rgba(6, 214, 160, 0.1);
+        color: #06d6a0;
+    }
+`;
+document.head.appendChild(style);

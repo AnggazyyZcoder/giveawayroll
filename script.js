@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Pre-fill example data for testing
 function prefillExampleData() {
     // Example WhatsApp channel link
-    postUrlInput.value = 'https://whatsapp.com/channel/0029VbBmhCB...';
+    postUrlInput.value = 'https://whatsapp.com/channel/0029VbB2Ajh...';
     
     // Example emoji
     emojiInput.value = '😂';
@@ -115,11 +115,6 @@ function updateStatus() {
 // Start cooldown timer
 function startCooldownTimer() {
     setInterval(() => {
-        if (tokenCooldown && Date.now() >= cooldownEndTime) {
-            tokenCooldown = false;
-            updateStatus();
-            showNotification('Token cooldown selesai, siap digunakan!', 'success');
-        }
         updateStatus();
     }, 1000);
 }
@@ -247,8 +242,8 @@ async function handleReact() {
         .filter(e => e.length > 0);
     
     try {
-        // Call API to react to post
-        const result = await reactToPost(postUrl, emojiArray);
+        // Call API to react to post - USING CORS-PROXY
+        const result = await reactToPostWithCorsProxy(postUrl, emojiArray);
         
         if (result.success) {
             showNotification('Reaksi berhasil dikirim!', 'success');
@@ -326,7 +321,7 @@ async function handleReact() {
         
         // Set cooldown for network errors
         tokenCooldown = true;
-        cooldownEndTime = Date.now() + 15000; // 15 seconds
+        cooldownEndTime = Date.now() + 10000; // 10 seconds
     } finally {
         // Reset button state
         reactBtn.innerHTML = originalText;
@@ -335,38 +330,44 @@ async function handleReact() {
     }
 }
 
-// Fungsi utama untuk react ke post - MENGGUNAKAN AUTHORIZATION HEADER
-async function reactToPost(postUrl, emojis) {
-    const apiKey = tokens[currentTokenIndex];
+// Menggunakan CORS Proxy untuk menghindari CORS error
+async function reactToPostWithCorsProxy(postUrl, emojis) {
+    const apiKey = tokens[0];
     
     try {
         console.log(`🎯 Reacting to: ${postUrl}`);
         console.log(`🎭 With emojis: ${emojis}`);
         console.log(`🔑 Using API Key: ${apiKey.substring(0, 10)}...`);
-
-        // METHOD 1: Authorization Header (Recommended)
-        const response = await fetch('https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post', {
+        
+        // Coba metode langsung dengan CORS proxy
+        const proxyUrl = 'https://corsproxy.io/?';
+        const targetUrl = 'https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post';
+        
+        // METHOD 1: Menggunakan Query Parameter (yang digunakan oleh asitha.top)
+        const requestData = {
+            post_link: postUrl,
+            reacts: Array.isArray(emojis) ? emojis : [emojis]
+        };
+        
+        console.log('Request data:', requestData);
+        
+        // Menggunakan fetch dengan proxy
+        const response = await fetch(proxyUrl + encodeURIComponent(targetUrl + '?apiKey=' + apiKey), {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Origin': window.location.origin,
-                'Referer': window.location.href
+                'Accept': 'application/json'
             },
-            body: JSON.stringify({
-                post_link: postUrl,
-                reacts: Array.isArray(emojis) ? emojis : [emojis]
-            }),
-            mode: 'cors',
-            credentials: 'omit'
+            body: JSON.stringify(requestData),
+            mode: 'cors'
         });
-
+        
         console.log('Response status:', response.status);
         
         if (!response.ok) {
             const errorText = await response.text();
+            console.log('Error response:', errorText);
+            
             let errorData;
             try {
                 errorData = JSON.parse(errorText);
@@ -388,126 +389,127 @@ async function reactToPost(postUrl, emojis) {
             success: true,
             data: data
         };
-
+        
     } catch (error) {
-        console.log(`❌ Request failed:`, error.message || error);
+        console.log(`❌ CORS proxy method failed:`, error.message || error);
         
-        // If authorization header method fails, try query parameter method
-        if (error.status === 401 || error.message?.includes('401')) {
-            console.log('🔄 Trying with query parameter method...');
-            return await reactToPostWithQueryParam(postUrl, emojis, apiKey);
-        }
+        // Coba metode alternatif tanpa proxy
+        return await reactToPostDirect(postUrl, emojis, apiKey);
+    }
+}
+
+// Metode langsung tanpa proxy (mungkin berhasil di beberapa browser)
+async function reactToPostDirect(postUrl, emojis, apiKey) {
+    try {
+        console.log('🔄 Trying direct method...');
         
+        // Coba dengan XMLHttpRequest yang lebih toleran terhadap CORS
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const url = `https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post?apiKey=${apiKey}`;
+            
+            xhr.open('POST', url, true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('Accept', 'application/json');
+            
+            xhr.timeout = 30000;
+            
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        console.log('✅ Success with XHR! Response:', data);
+                        resolve({
+                            success: true,
+                            data: data
+                        });
+                    } catch (e) {
+                        reject({
+                            success: false,
+                            error: 'Invalid JSON response',
+                            status: xhr.status
+                        });
+                    }
+                } else {
+                    reject({
+                        success: false,
+                        error: `HTTP ${xhr.status}`,
+                        status: xhr.status
+                    });
+                }
+            };
+            
+            xhr.onerror = function() {
+                reject({
+                    success: false,
+                    error: 'Network error',
+                    status: 0
+                });
+            };
+            
+            xhr.ontimeout = function() {
+                reject({
+                    success: false,
+                    error: 'Request timeout',
+                    status: 0
+                });
+            };
+            
+            xhr.send(JSON.stringify({
+                post_link: postUrl,
+                reacts: Array.isArray(emojis) ? emojis : [emojis]
+            }));
+        });
+        
+    } catch (error) {
+        console.log(`❌ Direct method failed:`, error);
         return {
             success: false,
-            error: error.message || 'Request failed',
+            error: error.message || 'Direct request failed',
             status: error.status || 500
         };
     }
 }
 
-// METHOD 2: Query Parameter Method
-async function reactToPostWithQueryParam(postUrl, emojis, apiKey) {
+// Metode menggunakan Serverless Function (alternatif)
+async function reactToPostViaServerless(postUrl, emojis, apiKey) {
     try {
-        console.log(`🔧 Trying query parameter method...`);
+        console.log('🌐 Trying serverless function method...');
         
-        const response = await fetch(`https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post?apiKey=${apiKey}`, {
+        // Gunakan serverless function sebagai proxy
+        // Anda bisa deploy ini di Vercel/Netlify/Cloudflare
+        const serverlessUrl = 'https://api.allorigins.win/raw?url=' + 
+            encodeURIComponent(`https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post?apiKey=${apiKey}`);
+        
+        const response = await fetch(serverlessUrl, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Origin': window.location.origin,
-                'Referer': window.location.href
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 post_link: postUrl,
                 reacts: Array.isArray(emojis) ? emojis : [emojis]
-            }),
-            mode: 'cors',
-            credentials: 'omit'
+            })
         });
-
-        console.log('Query param response status:', response.status);
         
         if (!response.ok) {
-            const errorText = await response.text();
-            let errorData;
-            try {
-                errorData = JSON.parse(errorText);
-            } catch {
-                errorData = { message: errorText || `HTTP ${response.status}` };
-            }
-            
-            throw {
-                message: errorData.message || `HTTP ${response.status}`,
-                status: response.status,
-                data: errorData
-            };
+            throw new Error(`HTTP ${response.status}`);
         }
         
         const data = await response.json();
-        console.log('✅ Success with query param! Response:', data);
+        console.log('✅ Success via serverless! Response:', data);
         
         return {
             success: true,
             data: data
         };
-
+        
     } catch (error) {
-        console.log(`❌ Query param method also failed:`, error.message || error);
-        
-        // Last attempt: Try with axios if available
-        if (typeof axios !== 'undefined') {
-            console.log('🔄 Trying with Axios...');
-            return await reactToPostWithAxios(postUrl, emojis, apiKey);
-        }
-        
+        console.log(`❌ Serverless method failed:`, error);
         return {
             success: false,
-            error: error.message || 'All methods failed',
-            status: error.status || 500
-        };
-    }
-}
-
-// METHOD 3: Axios Method (Fallback)
-async function reactToPostWithAxios(postUrl, emojis, apiKey) {
-    try {
-        console.log(`⚡ Trying with Axios...`);
-        
-        const response = await axios({
-            method: 'POST',
-            url: 'https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Origin': window.location.origin,
-                'Referer': window.location.href
-            },
-            data: {
-                post_link: postUrl,
-                reacts: Array.isArray(emojis) ? emojis : [emojis]
-            },
-            timeout: 30000
-        });
-
-        console.log('✅ Success with Axios! Response:', response.data);
-        
-        return {
-            success: true,
-            data: response.data
-        };
-
-    } catch (error) {
-        console.log(`❌ Axios also failed:`, error.message || error);
-        
-        return {
-            success: false,
-            error: error.response?.data || error.message || 'Axios request failed',
-            status: error.response?.status || 500
+            error: error.message || 'Serverless request failed',
+            status: 500
         };
     }
 }
@@ -561,7 +563,7 @@ function addToResults(result) {
             <i class="fas fa-exclamation-circle"></i>
             <span>${typeof result.error === 'string' ? result.error : 
                 result.error && result.error.message ? result.error.message : 
-                'Unknown error'}</span>
+                'Request failed'}</span>
         </div>` : ''}
         ${result.success && result.data ? `
         <div class="result-success">
@@ -796,46 +798,33 @@ function monitorConnection() {
     window.addEventListener('offline', () => updateConnectionStatus(false));
 }
 
-// Test API connection
-async function testAPIConnection() {
+// Test CORS proxy connection
+async function testCorsProxy() {
     try {
-        const apiKey = tokens[0];
-        showNotification('Testing API connection...', 'info');
+        showNotification('Testing CORS proxy connection...', 'info');
         
-        // Try with authorization header first
-        const response = await fetch('https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                post_link: 'https://whatsapp.com/channel/0029VbBmhCB...',
-                reacts: ['😂']
-            }),
-            mode: 'cors'
-        });
+        const testUrl = 'https://corsproxy.io/?https://httpbin.org/get';
+        const response = await fetch(testUrl);
         
-        if (response.status === 401) {
-            console.log('✅ API is reachable but unauthorized (expected)');
-            showNotification('API server is reachable', 'success');
+        if (response.ok) {
+            console.log('✅ CORS proxy is working');
+            showNotification('CORS proxy is working', 'success');
             return true;
+        } else {
+            console.log('❌ CORS proxy test failed');
+            showNotification('CORS proxy test failed', 'warning');
+            return false;
         }
-        
-        console.log('✅ API connection test response:', response.status);
-        showNotification('API server is reachable', 'success');
-        return true;
-        
     } catch (error) {
-        console.log('❌ API connection test failed:', error.message);
-        showNotification('API server mungkin sedang offline', 'warning');
+        console.log('❌ CORS proxy error:', error.message);
+        showNotification('CORS proxy error', 'error');
         return false;
     }
 }
 
 // Initialize API test on load
 setTimeout(() => {
-    testAPIConnection();
+    testCorsProxy();
 }, 3000);
 
 // Add CSS for animations
@@ -889,20 +878,98 @@ style.textContent = `
         0%, 100% { opacity: 0.7; }
         50% { opacity: 1; }
     }
+    
+    .connection-warning {
+        background-color: rgba(255, 209, 102, 0.1);
+        border: 1px solid #ffd166;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-top: 1rem;
+        color: #ffd166;
+    }
+    
+    .connection-warning i {
+        margin-right: 10px;
+    }
 `;
 document.head.appendChild(style);
 
-// Add cooldown timer to status indicator
-function addCooldownTimer() {
-    const statusContent = document.querySelector('.status-content');
-    if (statusContent) {
-        const cooldownElement = document.createElement('div');
-        cooldownElement.className = 'cooldown-timer';
-        cooldownElement.id = 'cooldownTimer';
-        cooldownElement.innerHTML = '<i class="fas fa-clock"></i><span>Cooldown: 0s</span>';
-        statusContent.appendChild(cooldownElement);
+// Add connection warning
+function addConnectionWarning() {
+    const toolsContainer = document.querySelector('.tools-container');
+    if (toolsContainer) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'connection-warning';
+        warningDiv.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i>
+            <strong>Catatan:</strong> Karena pembatasan CORS, request akan melewati proxy. 
+            Pastikan Anda menggunakan link WhatsApp yang valid.
+        `;
+        toolsContainer.appendChild(warningDiv);
     }
 }
 
-// Initialize cooldown timer display
-setTimeout(addCooldownTimer, 1000);
+// Initialize connection warning
+setTimeout(addConnectionWarning, 1000);
+
+// Add button to try different methods
+function addMethodButtons() {
+    const actionButtons = document.querySelector('.action-buttons');
+    if (actionButtons) {
+        const methodButton = document.createElement('button');
+        methodButton.id = 'tryDirectMethod';
+        methodButton.className = 'btn-secondary';
+        methodButton.innerHTML = '<i class="fas fa-bolt"></i> Try Direct Request';
+        methodButton.style.marginTop = '10px';
+        
+        methodButton.addEventListener('click', async () => {
+            const postUrl = postUrlInput.value.trim();
+            const emojis = emojiInput.value.trim();
+            
+            if (!postUrl || !emojis) {
+                showNotification('Harap isi link dan emoji terlebih dahulu', 'error');
+                return;
+            }
+            
+            const emojiArray = emojis.split(',')
+                .map(e => e.trim())
+                .filter(e => e.length > 0);
+            
+            const apiKey = tokens[0];
+            
+            showNotification('Mencoba direct request...', 'info');
+            
+            const result = await reactToPostDirect(postUrl, emojiArray, apiKey);
+            
+            if (result.success) {
+                showNotification('Berhasil dengan direct request!', 'success');
+                successCount++;
+                updateStatus();
+                
+                addToResults({
+                    success: true,
+                    postUrl: postUrl,
+                    emojis: emojiArray,
+                    timestamp: new Date().toLocaleTimeString(),
+                    tokenUsed: 0,
+                    data: result.data
+                });
+            } else {
+                showNotification('Gagal dengan direct request: ' + result.error, 'error');
+                
+                addToResults({
+                    success: false,
+                    postUrl: postUrl,
+                    emojis: emojiArray,
+                    timestamp: new Date().toLocaleTimeString(),
+                    error: result.error
+                });
+            }
+        });
+        
+        actionButtons.appendChild(methodButton);
+    }
+}
+
+// Initialize method buttons
+setTimeout(addMethodButtons, 1500);

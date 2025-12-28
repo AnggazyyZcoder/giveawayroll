@@ -1,6 +1,7 @@
-// Tokens API
+
+// Tokens API - menggunakan token yang Anda berikan
 const tokens = [
-    "f7ca592b29b7f9eca59b352695a80e2a0cb9d1a0511b99bab913c947f1456c8b",
+    "e4e2f8b34124eea2c0d2ff724d1704a8f6e85d87ca4a7caeba240fba1e83327d",
     "1e51b47b5526318a1b091ce809351831c283ac3508c1cc058d19c7dc153a6b1f",
     "1268a2225806ec952aefe8eb950687c9b3d336de719e4b3245c2be3150003d09",
     "abd44b8d6fe5f877a4d184e0df08e29370f2d49414853a75a5d6d46e758c84c7",
@@ -67,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Pre-fill example data for testing
 function prefillExampleData() {
     // Example WhatsApp channel link
-    postUrlInput.value = 'https://whatsapp.com/channel/0029VbB2Ajh...';
+    postUrlInput.value = 'https://whatsapp.com/channel/0029VbBmhCB...';
     
     // Example emoji
     emojiInput.value = '😂';
@@ -230,8 +231,8 @@ async function handleReact() {
         .filter(e => e.length > 0);
     
     try {
-        // Call API to react to post - menggunakan fetch sebagai fallback
-        const result = await reactToPostWithFallback(postUrl, emojiArray);
+        // Call API to react to post
+        const result = await reactToPost(postUrl, emojiArray);
         
         if (result.success) {
             showNotification('Reaksi berhasil dikirim!', 'success');
@@ -243,7 +244,7 @@ async function handleReact() {
                 postUrl: postUrl,
                 emojis: emojiArray,
                 timestamp: new Date().toLocaleTimeString(),
-                tokenUsed: result.tokenIndex,
+                tokenUsed: currentTokenIndex,
                 data: result.data
             });
         } else {
@@ -280,11 +281,16 @@ async function handleReact() {
         console.error('Error:', error);
         
         // Handle network errors specifically
-        if (error.message && (error.message.includes('Network Error') || error.message.includes('Failed to fetch') || error.message.includes('timeout'))) {
-            showNotification('Koneksi jaringan bermasalah. Periksa koneksi internet Anda.', 'error');
-        } else {
-            showNotification('Terjadi kesalahan saat memproses permintaan', 'error');
+        let errorMsg = 'Terjadi kesalahan saat memproses permintaan';
+        if (error.message && (error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+            errorMsg = 'Gagal terhubung ke server. Periksa koneksi internet Anda.';
+        } else if (error.message && error.message.includes('timeout')) {
+            errorMsg = 'Waktu permintaan habis. Server mungkin sedang sibuk.';
+        } else if (error.message) {
+            errorMsg = error.message;
         }
+        
+        showNotification(errorMsg, 'error');
         
         // Add to results history
         addToResults({
@@ -302,64 +308,105 @@ async function handleReact() {
     }
 }
 
-// Enhanced API function with fetch as primary and axios as fallback
-async function reactToPostWithFallback(postUrl, emojis) {
+// Fungsi utama untuk react ke post - MENGIKUTI STRUKTUR YANG ANDA BERIKAN
+async function reactToPost(postUrl, emojis) {
     let attempts = 0;
     const maxAttempts = tokens.length;
-    
-    // Show initial attempt status
-    console.log(`🚀 Starting reaction attempt to: ${postUrl.substring(0, 50)}...`);
-    console.log(`🎭 Emojis: ${emojis.join(', ')}`);
-    
-    // Loop through tokens
-    for (let i = 0; i < maxAttempts; i++) {
-        const tokenIndex = (currentTokenIndex + i) % tokens.length;
-        const apiKey = tokens[tokenIndex];
-        
-        console.log(`🔑 Attempt ${i + 1}: Using token index ${tokenIndex}`);
-        showNotification(`Mencoba dengan Token ${tokenIndex + 1}...`, 'info');
+    const startTime = Date.now();
+
+    while (attempts < maxAttempts) {
+        const apiKey = tokens[currentTokenIndex];
         
         try {
-            // Try with fetch first
-            const result = await makeRequestWithFetch(postUrl, emojis, apiKey, tokenIndex);
+            console.log(`🎯 Reacting to: ${postUrl}`);
+            console.log(`🎭 With emojis: ${emojis}`);
+            console.log(`🔑 Using token index: ${currentTokenIndex}`);
+            console.log(`🕒 Attempt ${attempts + 1} of ${maxAttempts}`);
+
+            showNotification(`Mencoba dengan Token ${currentTokenIndex + 1}...`, 'info');
+
+            const response = await axios({
+                method: 'POST',
+                url: `https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post?apiKey=${apiKey}`,
+                headers: {
+                    'authority': 'foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app',
+                    'accept': 'application/json, text/plain, */*',
+                    'accept-language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+                    'content-type': 'application/json',
+                    'origin': 'https://asitha.top',
+                    'referer': 'https://asitha.top/',
+                    'sec-ch-ua': '"Chromium";v="139", "Not;A=Brand";v="99"',
+                    'sec-ch-ua-mobile': '?1',
+                    'sec-ch-ua-platform': '"Android"',
+                    'sec-fetch-dest': 'empty',
+                    'sec-fetch-mode': 'cors',
+                    'sec-fetch-site': 'cross-site',
+                    'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36'
+                },
+                data: {
+                    post_link: postUrl,
+                    reacts: Array.isArray(emojis) ? emojis : [emojis]
+                },
+                timeout: 30000 // 30 detik timeout
+            });
+
+            const elapsedTime = Date.now() - startTime;
+            console.log(`✅ Success! Time: ${elapsedTime}ms`);
+            console.log('Response:', response.data);
             
-            // Update current token index for next request
-            currentTokenIndex = (tokenIndex + 1) % tokens.length;
+            // Pindah ke token berikutnya untuk request selanjutnya
+            currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
             
             return {
                 success: true,
-                data: result,
-                tokenIndex: tokenIndex
+                data: response.data
             };
-            
+
         } catch (error) {
-            console.log(`❌ Token ${tokenIndex} failed:`, error.message || error);
+            const elapsedTime = Date.now() - startTime;
+            console.log(`❌ Token ${currentTokenIndex} failed (${elapsedTime}ms):`, error.response?.data || error.message);
             
-            // Check if we should try next token
-            if (error.message && (
-                error.message.includes('limit') || 
-                error.message.includes('Limit') || 
-                error.message.includes('402') ||
-                error.message.includes('timeout') ||
-                error.message.includes('network') ||
-                error.message.includes('Network')
-            )) {
-                // Try next token
-                showNotification(`Token ${tokenIndex + 1} gagal, mencoba token lain...`, 'warning');
-                continue;
+            // Check for specific error types
+            if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+                console.log(`⏰ Timeout pada token ${currentTokenIndex}`);
+                showNotification(`Token ${currentTokenIndex + 1} timeout, mencoba token lain...`, 'warning');
             }
             
-            // For other errors, return the failure
-            return {
-                success: false,
-                error: error.message || 'Unknown error',
-                status: error.status || 500
-            };
+            if (error.response && error.response.status === 402) {
+                console.log(`🔄 Token ${currentTokenIndex} limit (402), switching token`);
+                showNotification(`Token ${currentTokenIndex + 1} limit, ganti token...`, 'warning');
+                
+                currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+                attempts++;
+                continue;
+            }
+
+            if (error.response?.data?.message?.includes('limit') || error.response?.data?.message?.includes('Limit')) {
+                console.log(`🔄 Token ${currentTokenIndex} limited, switching token`);
+                showNotification(`Token ${currentTokenIndex + 1} limited, ganti token...`, 'warning');
+                
+                currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+                attempts++;
+                continue;
+            }
+
+            // Untuk error lainnya, coba token berikutnya
+            console.log(`🔄 Token ${currentTokenIndex} error, trying next token`);
+            currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+            attempts++;
+            
+            // Jika sudah mencoba semua token
+            if (attempts >= maxAttempts) {
+                console.log('❌ All tokens failed!');
+                break;
+            }
+            
+            // Delay kecil sebelum mencoba token berikutnya
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
-    
-    // If all tokens failed
-    console.log('❌ All tokens failed!');
+
+    console.log('❌ All tokens limited or failed!');
     return {
         success: false,
         error: 'All tokens are limited or failed',
@@ -367,122 +414,81 @@ async function reactToPostWithFallback(postUrl, emojis) {
     };
 }
 
-// Make request using Fetch API
-async function makeRequestWithFetch(postUrl, emojis, apiKey, tokenIndex) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-    
-    try {
-        const apiUrl = `https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post?apiKey=${apiKey}`;
+// Alternative function using Fetch API jika Axios bermasalah
+async function reactToPostWithFetch(postUrl, emojis) {
+    let attempts = 0;
+    const maxAttempts = tokens.length;
+
+    while (attempts < maxAttempts) {
+        const apiKey = tokens[currentTokenIndex];
         
-        console.log(`📤 Making request to: ${apiUrl.substring(0, 60)}...`);
-        
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Origin': 'https://asitha.top',
-                'Referer': 'https://asitha.top/'
-            },
-            body: JSON.stringify({
-                post_link: postUrl,
-                reacts: Array.isArray(emojis) ? emojis : [emojis]
-            }),
-            signal: controller.signal,
-            mode: 'cors'
-        });
-        
-        clearTimeout(timeoutId);
-        
-        // Check if response is ok
-        if (!response.ok) {
-            const errorText = await response.text();
-            let errorData;
-            try {
-                errorData = JSON.parse(errorText);
-            } catch {
-                errorData = { message: errorText || `HTTP ${response.status}` };
+        try {
+            console.log(`🔧 Using Fetch API with token ${currentTokenIndex}`);
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+            
+            const response = await fetch(`https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post?apiKey=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'authority': 'foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app',
+                    'accept': 'application/json, text/plain, */*',
+                    'accept-language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+                    'content-type': 'application/json',
+                    'origin': 'https://asitha.top',
+                    'referer': 'https://asitha.top/',
+                    'sec-ch-ua': '"Chromium";v="139", "Not;A=Brand";v="99"',
+                    'sec-ch-ua-mobile': '?1',
+                    'sec-ch-ua-platform': '"Android"',
+                    'sec-fetch-dest': 'empty',
+                    'sec-fetch-mode': 'cors',
+                    'sec-fetch-site': 'cross-site',
+                    'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36'
+                },
+                body: JSON.stringify({
+                    post_link: postUrl,
+                    reacts: Array.isArray(emojis) ? emojis : [emojis]
+                }),
+                signal: controller.signal,
+                mode: 'cors'
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${await response.text()}`);
             }
             
-            throw {
-                message: errorData.message || `HTTP ${response.status}`,
-                status: response.status,
-                data: errorData
+            const data = await response.json();
+            
+            // Pindah ke token berikutnya
+            currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+            
+            return {
+                success: true,
+                data: data
             };
-        }
-        
-        const data = await response.json();
-        console.log('✅ Success! Response:', data);
-        
-        return data;
-        
-    } catch (error) {
-        clearTimeout(timeoutId);
-        
-        // Re-throw the error with proper formatting
-        throw {
-            message: error.message || 'Request failed',
-            status: error.status || 0,
-            data: error.data || null
-        };
-    }
-}
-
-// Alternative function using Axios (as fallback)
-async function makeRequestWithAxios(postUrl, emojis, apiKey, tokenIndex) {
-    try {
-        // Make sure axios is loaded
-        if (typeof axios === 'undefined') {
-            throw new Error('Axios not loaded');
-        }
-        
-        const apiUrl = `https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app/api/channel/react-to-post?apiKey=${apiKey}`;
-        
-        const response = await axios({
-            method: 'POST',
-            url: apiUrl,
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Origin': 'https://asitha.top',
-                'Referer': 'https://asitha.top/'
-            },
-            data: {
-                post_link: postUrl,
-                reacts: Array.isArray(emojis) ? emojis : [emojis]
-            },
-            timeout: 15000
-        });
-        
-        console.log('✅ Success with Axios! Response:', response.data);
-        return response.data;
-        
-    } catch (error) {
-        console.error('❌ Axios request failed:', error);
-        
-        if (error.response) {
-            throw {
-                message: error.response.data?.message || `HTTP ${error.response.status}`,
-                status: error.response.status,
-                data: error.response.data
-            };
-        } else if (error.request) {
-            throw {
-                message: 'No response received from server',
-                status: 0,
-                data: null
-            };
-        } else {
-            throw {
-                message: error.message || 'Axios setup error',
-                status: 0,
-                data: null
-            };
+            
+        } catch (error) {
+            console.log(`❌ Fetch API failed with token ${currentTokenIndex}:`, error.message);
+            
+            // Coba token berikutnya
+            currentTokenIndex = (currentTokenIndex + 1) % tokens.length;
+            attempts++;
+            
+            if (attempts >= maxAttempts) {
+                break;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
+    
+    return {
+        success: false,
+        error: 'All tokens failed with Fetch API',
+        status: 500
+    };
 }
 
 // Add result to history
@@ -535,25 +541,18 @@ function addToResults(result) {
             <i class="fas fa-exclamation-circle"></i>
             <span>${typeof result.error === 'string' ? result.error : 
                 result.error && result.error.message ? result.error.message : 
-                JSON.stringify(result.error)}</span>
+                'Unknown error'}</span>
         </div>` : ''}
         ${result.success && result.data ? `
         <div class="result-success">
             <i class="fas fa-check-circle"></i>
-            <span>Success: ${result.data.message || 'Reaction sent successfully'}</span>
+            <span>${result.data.message || 'Reaction sent successfully'}</span>
         </div>` : ''}
     `;
     
-    // Add animation delay based on existing results
-    const existingResults = resultsList.children.length;
-    const delay = existingResults * 0.1;
-    resultElement.style.animationDelay = `${delay}s`;
-    
-    // Reset animation for new element
-    resultElement.style.animation = 'none';
-    setTimeout(() => {
-        resultElement.style.animation = `slideInRight 0.5s ease ${delay}s forwards`;
-    }, 10);
+    // Add animation
+    resultElement.style.animation = 'slideInRight 0.5s ease forwards';
+    resultElement.style.opacity = '0';
     
     // Add to top of results list
     if (resultsList.firstChild) {
@@ -561,6 +560,11 @@ function addToResults(result) {
     } else {
         resultsList.appendChild(resultElement);
     }
+    
+    // Trigger animation
+    setTimeout(() => {
+        resultElement.style.opacity = '1';
+    }, 10);
     
     // Limit to 10 results
     if (resultsList.children.length > 10) {
@@ -775,18 +779,19 @@ function monitorConnection() {
 // Test API connection
 async function testAPIConnection() {
     try {
-        const testUrl = 'https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app';
-        const response = await fetch(testUrl, { 
+        showNotification('Testing API connection...', 'info');
+        
+        const response = await fetch('https://foreign-marna-sithaunarathnapromax-9a005c2e.koyeb.app', {
             method: 'HEAD',
             mode: 'no-cors'
         });
         
-        // If we can make the request (even with no-cors), the server is reachable
         console.log('✅ API server is reachable');
+        showNotification('API server is reachable', 'success');
         return true;
     } catch (error) {
         console.log('❌ API server may be unreachable:', error.message);
-        showNotification('API server mungkin sedang offline', 'warning');
+        showNotification('API server mungkin sedang offline atau ada masalah CORS', 'warning');
         return false;
     }
 }
@@ -796,14 +801,68 @@ setTimeout(() => {
     testAPIConnection();
 }, 3000);
 
-// Add CSS for result items
+// Tambahkan tombol untuk mencoba dengan Fetch API
+function addFetchFallbackButton() {
+    const fetchButton = document.createElement('button');
+    fetchButton.id = 'fetchFallbackBtn';
+    fetchButton.className = 'btn-secondary';
+    fetchButton.innerHTML = '<i class="fas fa-sync-alt"></i> Try Fetch API';
+    fetchButton.style.marginTop = '10px';
+    
+    fetchButton.addEventListener('click', async () => {
+        const postUrl = postUrlInput.value.trim();
+        const emojis = emojiInput.value.trim();
+        
+        if (!postUrl || !emojis) {
+            showNotification('Harap isi link dan emoji terlebih dahulu', 'error');
+            return;
+        }
+        
+        const emojiArray = emojis.split(',')
+            .map(e => e.trim())
+            .filter(e => e.length > 0);
+        
+        showNotification('Mencoba dengan Fetch API...', 'info');
+        
+        const result = await reactToPostWithFetch(postUrl, emojiArray);
+        
+        if (result.success) {
+            showNotification('Berhasil dengan Fetch API!', 'success');
+            successCount++;
+            updateStatus();
+            
+            addToResults({
+                success: true,
+                postUrl: postUrl,
+                emojis: emojiArray,
+                timestamp: new Date().toLocaleTimeString(),
+                tokenUsed: currentTokenIndex,
+                data: result.data
+            });
+        } else {
+            showNotification('Gagal dengan Fetch API: ' + result.error, 'error');
+            
+            addToResults({
+                success: false,
+                postUrl: postUrl,
+                emojis: emojiArray,
+                timestamp: new Date().toLocaleTimeString(),
+                error: result.error
+            });
+        }
+    });
+    
+    document.querySelector('.action-buttons').appendChild(fetchButton);
+}
+
+// Initialize fetch fallback button
+setTimeout(() => {
+    addFetchFallbackButton();
+}, 1000);
+
+// Tambahkan CSS untuk animasi
 const style = document.createElement('style');
 style.textContent = `
-    .result-item {
-        animation: slideInRight 0.5s ease forwards;
-        opacity: 0;
-    }
-    
     @keyframes slideInRight {
         from {
             opacity: 0;
@@ -833,6 +892,11 @@ style.textContent = `
     .result-success {
         background-color: rgba(6, 214, 160, 0.1);
         color: #06d6a0;
+    }
+    
+    #fetchFallbackBtn {
+        margin-top: 10px;
+        width: 100%;
     }
 `;
 document.head.appendChild(style);

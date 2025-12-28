@@ -3,154 +3,250 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Giveaway Roller - Sistem Pengecekan Status Reedem</title>
+    <title>WhatsApp Reaction Roll Tools | Status Redeem Checker</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Montserrat:wght@800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
 </head>
 <body>
-    <div class="container">
-        <!-- Header Section -->
-        <header class="header animate__animated animate__fadeIn">
-            <div class="logo">
-                <i class="fas fa-gift"></i>
-                <span>Giveaway<span class="logo-highlight">Roller</span></span>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-content">
+            <div class="loading-spinner">
+                <div class="spinner-circle"></div>
+                <div class="spinner-circle"></div>
+                <div class="spinner-circle"></div>
+                <div class="spinner-circle"></div>
             </div>
+            <div class="loading-text">
+                <span class="loading-letter">W</span>
+                <span class="loading-letter">A</span>
+                <span class="loading-letter">R</span>
+                <span class="loading-letter">T</span>
+                <span class="loading-letter">O</span>
+                <span class="loading-letter">O</span>
+                <span class="loading-letter">L</span>
+                <span class="loading-letter">S</span>
+            </div>
+            <p class="loading-subtext">Initializing Reaction Roll System...</p>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fab fa-whatsapp"></i>
+                <span>WA Reaction Tools</span>
+            </div>
+            <nav class="nav">
+                <a href="#home" class="nav-link active">Home</a>
+                <a href="#tools" class="nav-link">Tools</a>
+                <a href="#status" class="nav-link">Status</a>
+                <a href="#about" class="nav-link">About</a>
+            </nav>
             <div class="theme-toggle">
                 <i class="fas fa-moon"></i>
             </div>
         </header>
 
-        <!-- Hero Section -->
-        <section class="hero animate__animated animate__fadeInUp">
-            <div class="hero-content">
-                <h1 class="hero-title">Welcome Selamat Datang di <span class="highlight">Giveaway Roller</span></h1>
-                <p class="hero-subtitle">Sistem pengecekan status reedem giveaway yang modern dan menarik</p>
-                <div class="scroll-indicator">
-                    <p>Scroll ke bawah untuk memulai</p>
-                    <div class="scroll-arrow">
-                        <i class="fas fa-chevron-down"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="hero-graphics">
-                <div class="floating-gift">
-                    <i class="fas fa-gift"></i>
-                </div>
-                <div class="floating-confetti">
-                    <i class="fas fa-star"></i>
-                </div>
-                <div class="floating-confetti confetti-2">
-                    <i class="fas fa-heart"></i>
-                </div>
-            </div>
-        </section>
-
-        <!-- Participants Section -->
-        <section class="participants-section animate__animated animate__fadeIn">
-            <h2 class="section-title">Peserta Giveaway <span class="highlight">Part 1</span></h2>
-            <p class="section-subtitle">Berikut adalah daftar peserta yang mengikuti giveaway ini</p>
-            
-            <div class="participants-container">
-                <div class="participants-grid" id="participantsList">
-                    <!-- Participants will be added by JavaScript -->
-                </div>
-            </div>
-            
-            <div class="info-box">
-                <i class="fas fa-info-circle"></i>
-                <p><strong>Tips:</strong> Nama pemenang sudah ditentukan sebelumnya. Klik tombol "Acak" untuk melihat pemenang giveaway!</p>
-            </div>
-        </section>
-
-        <!-- Roller Section -->
-        <section class="roller-section">
-            <h2 class="section-title">Acak <span class="highlight">Pemenang</span></h2>
-            <p class="section-subtitle">Klik tombol di bawah untuk mengacak pemenang giveaway</p>
-            
-            <div class="roller-container">
-                <div class="roller-display">
-                    <div class="roller-screen">
-                        <div class="rolling-text" id="rollingText">
-                            <span>?</span>
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Welcome Section -->
+            <section class="welcome-section fade-in" id="home">
+                <div class="welcome-content">
+                    <h1 class="welcome-title">
+                        <span class="title-part">Halo! Selamat Datang di</span>
+                        <span class="title-part highlight">WhatsApp Reaction Roll Tools</span>
+                    </h1>
+                    <p class="welcome-description">
+                        Platform canggih untuk melakukan reaksi otomatis pada postingan channel WhatsApp dengan berbagai emoji. 
+                        Pantau status redeem dan kelola reaksi Anda dengan mudah melalui alat ini.
+                    </p>
+                    <div class="features-list">
+                        <div class="feature-card">
+                            <i class="fas fa-bolt"></i>
+                            <h3>Cepat & Efisien</h3>
+                            <p>Proses reaksi dalam hitungan detik dengan sistem token multiple</p>
                         </div>
-                        <div class="roller-glow"></div>
-                    </div>
-                    <div class="roller-status">
-                        <p class="status-text" id="statusText">Siap untuk mengacak pemenang</p>
+                        <div class="feature-card">
+                            <i class="fas fa-shield-alt"></i>
+                            <h3>Aman & Terpercaya</h3>
+                            <p>Menggunakan API key terenkripsi untuk keamanan data</p>
+                        </div>
+                        <div class="feature-card">
+                            <i class="fas fa-mobile-alt"></i>
+                            <h3>Responsif</h3>
+                            <p>Akses tools dari perangkat apapun dengan tampilan optimal</p>
+                        </div>
                     </div>
                 </div>
-                
-                <button class="roll-button" id="rollButton">
-                    <i class="fas fa-random"></i>
-                    <span>Acak Pemenang</span>
-                </button>
-                
-                <div class="roll-info">
-                    <p><i class="fas fa-clock"></i> Proses pengacakan akan berlangsung selama <strong>4 detik</strong></p>
-                </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- Winner Section (Initially Hidden) -->
-        <section class="winner-section hidden animate__animated" id="winnerSection">
-            <div class="winner-card">
-                <div class="winner-header">
-                    <h3 class="winner-title">🎉 Selamat Kepada Pemenang 🎉</h3>
-                    <div class="winner-crown">
-                        <i class="fas fa-crown"></i>
+            <!-- Tools Section -->
+            <section class="tools-section fade-in" id="tools">
+                <h2 class="section-title">
+                    <i class="fas fa-tools"></i>
+                    WhatsApp Reaction Tools
+                </h2>
+                <p class="section-subtitle">Masukkan link saluran dan pilih emoji untuk memberikan reaksi</p>
+                
+                <div class="tools-container">
+                    <div class="input-group">
+                        <label for="postUrl">
+                            <i class="fas fa-link"></i>
+                            Masukkan Link Saluran
+                        </label>
+                        <input type="text" id="postUrl" placeholder="https://whatsapp.com/channel/..." class="input-field">
+                        <div class="input-tips">
+                            <i class="fas fa-lightbulb"></i>
+                            <span>Tips: Pastikan link berasal dari channel WhatsApp yang valid</span>
+                        </div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="emojiInput">
+                            <i class="fas fa-smile"></i>
+                            Emoji Reactions
+                        </label>
+                        <div class="emoji-container">
+                            <input type="text" id="emojiInput" placeholder="😭,😂,🥵" class="input-field">
+                            <div class="emoji-preview" id="emojiPreview">
+                                <span>Preview: </span>
+                                <span id="previewEmojis"></span>
+                            </div>
+                        </div>
+                        <div class="input-tips">
+                            <i class="fas fa-lightbulb"></i>
+                            <span>Tips: Pisahkan emoji dengan koma (contoh: 😭,😂,🥵)</span>
+                        </div>
+                        
+                        <div class="emoji-suggestions">
+                            <p class="suggestion-label">Emoji populer:</p>
+                            <div class="suggested-emojis">
+                                <button class="emoji-btn" data-emoji="😭">😭</button>
+                                <button class="emoji-btn" data-emoji="😂">😂</button>
+                                <button class="emoji-btn" data-emoji="🥵">🥵</button>
+                                <button class="emoji-btn" data-emoji="❤️">❤️</button>
+                                <button class="emoji-btn" data-emoji="🔥">🔥</button>
+                                <button class="emoji-btn" data-emoji="👍">👍</button>
+                                <button class="emoji-btn" data-emoji="😎">😎</button>
+                                <button class="emoji-btn" data-emoji="🤯">🤯</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button id="reactBtn" class="btn-primary">
+                            <i class="fas fa-rocket"></i>
+                            React Now
+                        </button>
+                        <button id="clearBtn" class="btn-secondary">
+                            <i class="fas fa-redo"></i>
+                            Clear Fields
+                        </button>
                     </div>
                 </div>
                 
-                <div class="winner-details">
-                    <div class="winner-avatar">
-                        <i class="fas fa-trophy"></i>
+                <!-- Status Indicator -->
+                <div class="status-indicator" id="statusIndicator">
+                    <div class="status-header">
+                        <i class="fas fa-sync-alt"></i>
+                        <h3>Status Redeem & Token</h3>
                     </div>
-                    <div class="winner-info">
-                        <p class="winner-label">Pemenang Giveaway Part 1</p>
-                        <h2 class="winner-name" id="winnerName">LOREN</h2>
-                        <p class="winner-number">Nomor Peserta: <span id="winnerNumber">8</span></p>
+                    <div class="status-content">
+                        <div class="status-item">
+                            <span class="status-label">Token Aktif:</span>
+                            <span class="status-value" id="activeToken">0/12</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Status API:</span>
+                            <span class="status-value" id="apiStatus">Ready</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Reaksi Sukses:</span>
+                            <span class="status-value" id="successCount">0</span>
+                        </div>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" id="tokenProgress"></div>
+                        <div class="progress-label">Token Usage: <span id="progressText">0%</span></div>
                     </div>
                 </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="results-section fade-in" id="status">
+                <h2 class="section-title">
+                    <i class="fas fa-history"></i>
+                    Riwayat Reaksi
+                </h2>
                 
-                <div class="winner-actions">
-                    <button class="action-button share-button">
-                        <i class="fas fa-share-alt"></i> Bagikan
-                    </button>
-                    <button class="action-button roll-again-button" id="rollAgainButton">
-                        <i class="fas fa-redo"></i> Acak Lagi
-                    </button>
+                <div class="results-container">
+                    <div class="results-placeholder" id="resultsPlaceholder">
+                        <i class="fas fa-history"></i>
+                        <p>Riwayat reaksi akan muncul di sini</p>
+                        <p class="placeholder-sub">Lakukan reaksi pertama Anda untuk melihat hasil</p>
+                    </div>
+                    <div class="results-list" id="resultsList">
+                        <!-- Results will be added here dynamically -->
+                    </div>
                 </div>
+            </section>
+
+            <!-- About Section -->
+            <section class="about-section fade-in" id="about">
+                <h2 class="section-title">
+                    <i class="fas fa-info-circle"></i>
+                    Tentang Alat Ini
+                </h2>
                 
-                <div class="confetti-container">
-                    <div class="confetti"></div>
-                    <div class="confetti"></div>
-                    <div class="confetti"></div>
-                    <div class="confetti"></div>
-                    <div class="confetti"></div>
+                <div class="about-content">
+                    <p>
+                        WhatsApp Reaction Roll Tools adalah alat yang dikembangkan untuk memberikan reaksi otomatis 
+                        pada postingan channel WhatsApp menggunakan berbagai emoji. Alat ini menggunakan sistem 
+                        multiple token untuk memastikan keberhasilan reaksi meskipun ada limitasi pada token tertentu.
+                    </p>
+                    
+                    <div class="about-features">
+                        <h3><i class="fas fa-star"></i> Fitur Unggulan:</h3>
+                        <ul>
+                            <li><i class="fas fa-check"></i> Multiple token rotation untuk menghindari limit</li>
+                            <li><i class="fas fa-check"></i> Dukungan berbagai emoji reaksi</li>
+                            <li><i class="fas fa-check"></i> Monitoring status redeem secara real-time</li>
+                            <li><i class="fas fa-check"></i> Riwayat reaksi yang terorganisir</li>
+                            <li><i class="fas fa-check"></i> Antarmuka yang responsif dan user-friendly</li>
+                        </ul>
+                    </div>
                 </div>
-            </div>
-        </section>
+            </section>
+        </main>
 
         <!-- Footer -->
         <footer class="footer">
             <div class="footer-content">
                 <div class="footer-logo">
-                    <i class="fas fa-gift"></i>
-                    <span>GiveawayRoller</span>
+                    <i class="fab fa-whatsapp"></i>
+                    <span>WA Reaction Tools</span>
                 </div>
-                <p class="footer-text">Sistem pengacakan pemenang giveaway yang adil dan transparan</p>
-                <p class="copyright">© Copyright ❤ 2025 Giveaway Roller. All rights reserved.</p>
-                <div class="footer-version">
-                    <span class="version-badge">PRO VERSION</span>
+                <p class="footer-text">
+                    © Copyright ❤ 2025 Giveaway roller. All rights reserved.
+                </p>
+                <div class="footer-links">
+                    <a href="#"><i class="fab fa-github"></i></a>
+                    <a href="#"><i class="fab fa-twitter"></i></a>
+                    <a href="#"><i class="fab fa-discord"></i></a>
+                    <a href="#"><i class="fas fa-envelope"></i></a>
                 </div>
             </div>
         </footer>
     </div>
 
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

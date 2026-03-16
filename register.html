@@ -3,104 +3,85 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data:; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://api.jsonbin.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src * data:; connect-src https://api.jsonbin.io;">
-  <meta name="referrer" content="no-referrer">
   <title>Drip Client - Register</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="icon" href="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" type="image/jpeg">
 </head>
-<body data-page="register">
+<body>
 
-  <!-- Particle Background -->
-  <canvas id="particles-canvas"></canvas>
+<canvas id="particles-canvas"></canvas>
 
-  <!-- Loading Screen -->
-  <div id="loading-screen">
-    <div class="loading-orb loading-orb-1"></div>
-    <div class="loading-orb loading-orb-2"></div>
-    <div class="loading-logo-wrap"></div>
-    <div class="loading-bar-wrap">
-      <div class="loading-bar"></div>
-    </div>
-    <div class="loading-text">INITIALIZING SYSTEM</div>
+<!-- Loading Screen -->
+<div id="loading-screen">
+  <div class="loading-particles" id="loadParticles"></div>
+  <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Drip Client Logo" class="loading-logo-img" onerror="this.style.display='none'">
+  <div class="loading-text-container" id="loadingLetters"></div>
+  <p class="loading-subtitle">Buy Key Platform</p>
+  <div class="loading-bar-container">
+    <div class="loading-bar"></div>
   </div>
+</div>
 
-  <!-- Auth Section -->
-  <div id="auth-section" class="auth-page" style="display:none">
+<div class="main-wrapper">
+  <div class="auth-wrapper">
     <div class="auth-card">
-      <div class="auth-logo-wrap">
-        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg"
-             alt="Drip Client Logo" class="auth-logo"
-             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect fill=%22%237c3aed%22 width=%2264%22 height=%2264%22 rx=%2212%22/><text x=%2232%22 y=%2244%22 text-anchor=%22middle%22 font-size=%2228%22 fill=%22white%22>D</text></svg>'">
-        <div class="auth-title">Buat Akun Baru</div>
-        <div class="auth-sub">Bergabung dengan Drip Client sekarang</div>
+      <div class="auth-logo-container">
+        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Drip Client" class="auth-logo" onerror="this.style.display='none'">
+      </div>
+      <h1 class="auth-title"><i class="fas fa-user-plus" style="font-size:0.85em;"></i> Buat Akun Baru</h1>
+      <p class="auth-subtitle">Bergabung dengan Drip Client sekarang</p>
+
+      <div class="form-group">
+        <label class="form-label"><i class="fas fa-user" style="margin-right:6px;color:var(--primary);"></i> Username</label>
+        <div class="input-wrapper">
+          <i class="fas fa-user input-icon"></i>
+          <input type="text" class="form-input" id="regUsername" placeholder="Pilih username unik..." maxlength="20" oninput="this.value=sanitizeInput(this.value)">
+        </div>
+        <small id="regUsernameHint" style="color:var(--text-muted);font-family:'Rajdhani',sans-serif;font-size:0.78rem;margin-top:5px;display:block;">Min. 3 karakter, huruf dan angka saja</small>
       </div>
 
-      <form id="register-form" autocomplete="off" novalidate>
-        <div class="form-group">
-          <label class="form-label"><i class="fas fa-user" style="margin-right:6px;color:var(--primary-light)"></i>Username</label>
-          <div class="input-wrap">
-            <i class="fas fa-user input-icon"></i>
-            <input type="text" id="reg-username" class="form-input" placeholder="Buat username unik kamu" maxlength="20" autocomplete="off" spellcheck="false">
-          </div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;padding-left:4px">
-            <i class="fas fa-info-circle" style="margin-right:4px"></i>3-20 karakter, huruf/angka/underscore saja
-          </div>
+      <div class="form-group">
+        <label class="form-label"><i class="fas fa-lock" style="margin-right:6px;color:var(--primary);"></i> Password</label>
+        <div class="input-wrapper">
+          <i class="fas fa-lock input-icon"></i>
+          <input type="password" class="form-input has-right-icon" id="regPassword" placeholder="Buat password kuat..." maxlength="50" oninput="checkPasswordStrength(this.value)">
+          <button type="button" class="toggle-password" onclick="togglePw('regPassword','eyeReg1')">
+            <i id="eyeReg1" class="fas fa-eye-slash"></i>
+          </button>
         </div>
-
-        <div class="form-group">
-          <label class="form-label"><i class="fas fa-lock" style="margin-right:6px;color:var(--primary-light)"></i>Password</label>
-          <div class="input-wrap">
-            <i class="fas fa-lock input-icon"></i>
-            <input type="password" id="reg-password" class="form-input" placeholder="Buat password kamu (min. 6 karakter)" maxlength="50" autocomplete="new-password">
-            <button type="button" class="eye-toggle"><i class="fas fa-eye"></i></button>
-          </div>
+        <div id="pwStrength" style="margin-top:6px;height:4px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden;">
+          <div id="pwStrengthBar" style="height:100%;width:0%;transition:all 0.4s;border-radius:2px;"></div>
         </div>
-
-        <div class="form-group">
-          <label class="form-label"><i class="fas fa-shield-alt" style="margin-right:6px;color:var(--primary-light)"></i>Konfirmasi Password</label>
-          <div class="input-wrap">
-            <i class="fas fa-shield-alt input-icon"></i>
-            <input type="password" id="reg-confirm" class="form-input" placeholder="Ulangi password kamu" maxlength="50" autocomplete="new-password">
-            <button type="button" class="eye-toggle"><i class="fas fa-eye"></i></button>
-          </div>
-        </div>
-
-        <div style="padding:12px;background:rgba(124,58,237,0.08);border:1px solid var(--border);border-radius:8px;margin-bottom:20px">
-          <div style="font-size:12px;color:var(--text-muted);line-height:1.6">
-            <i class="fas fa-info-circle" style="color:var(--primary-light);margin-right:6px"></i>
-            Dengan mendaftar, kamu setuju dengan ketentuan layanan Drip Client. Akun akan langsung aktif setelah registrasi.
-          </div>
-        </div>
-
-        <button type="submit" id="reg-btn" class="btn btn-primary btn-full">
-          <i class="fas fa-user-plus"></i> Daftar Sekarang
-        </button>
-      </form>
-
-      <div class="auth-footer" style="margin-top:18px">
-        Sudah punya akun?
-        <a href="index.html" class="auth-link">Login di sini</a>
+        <small id="pwStrengthLabel" style="color:var(--text-muted);font-family:'Rajdhani',sans-serif;font-size:0.78rem;margin-top:3px;display:block;"></small>
       </div>
 
-      <!-- Security info -->
-      <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="padding:8px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;text-align:center">
-          <i class="fas fa-lock" style="color:var(--success);font-size:14px;display:block;margin-bottom:4px"></i>
-          <span style="font-size:10px;color:var(--text-muted)">Password Dienkripsi</span>
+      <div class="form-group">
+        <label class="form-label"><i class="fas fa-check-circle" style="margin-right:6px;color:var(--primary);"></i> Konfirmasi Password</label>
+        <div class="input-wrapper">
+          <i class="fas fa-check-circle input-icon"></i>
+          <input type="password" class="form-input has-right-icon" id="regPasswordConfirm" placeholder="Ulangi password..." maxlength="50">
+          <button type="button" class="toggle-password" onclick="togglePw('regPasswordConfirm','eyeReg2')">
+            <i id="eyeReg2" class="fas fa-eye-slash"></i>
+          </button>
         </div>
-        <div style="padding:8px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;text-align:center">
-          <i class="fas fa-database" style="color:var(--success);font-size:14px;display:block;margin-bottom:4px"></i>
-          <span style="font-size:10px;color:var(--text-muted)">Data Aman</span>
-        </div>
+      </div>
+
+      <button class="btn btn-primary" id="registerBtn" onclick="handleRegister()">
+        <i class="fas fa-rocket"></i> Buat Akun
+      </button>
+
+      <div class="auth-footer">
+        Sudah punya akun? <a href="index.html" class="auth-link">Login Sekarang</a>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- Toast Container -->
-  <div id="toast-container" class="toast-container"></div>
-
-  <script src="script.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.10.5/sweetalert2.all.min.js"></script>
+<script src="script.js"></script>
+<script>
+  initLoadingScreen('register');
+</script>
 </body>
 </html>

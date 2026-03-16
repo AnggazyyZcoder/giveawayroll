@@ -1,276 +1,221 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Drip Client – Dashboard</title>
-  <link rel="stylesheet" href="style.css"/>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <link rel="icon" href="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" type="image/jpeg"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drip Client - Dashboard</title>
+  <link rel="icon" href="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" type="image/jpeg">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <canvas id="particles-canvas"></canvas>
 
-  <!-- LOADING SCREEN -->
+  <!-- Loading Screen -->
   <div id="loading-screen">
-    <div class="loading-logo-wrap">
-      <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="loading-logo-img" alt="Drip Client"/>
-      <div class="loading-title-chars" id="loading-chars"></div>
-      <div class="loading-subtitle">Premium Key Platform</div>
-    </div>
+    <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Logo" class="loading-logo">
+    <div class="loading-title"></div>
     <div class="loading-bar-wrap">
-      <div class="loading-bar-fill"></div>
+      <div class="loading-bar"></div>
     </div>
+    <div class="loading-text">Loading Dashboard...</div>
   </div>
 
-  <!-- MAINTENANCE POPUP -->
-  <div class="maintenance-popup" id="maintenance-popup" style="display:none;">
-    <div class="maintenance-card">
-      <div class="maintenance-animation">
-        <i class="fas fa-cog maintenance-gear"></i>
+  <!-- Main Content -->
+  <div id="main-content" style="display:none" class="main-content">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Logo" class="topbar-logo">
+        <div class="topbar-brand">DRIP CLIENT</div>
       </div>
-      <div class="maintenance-title">🔧 MAINTENANCE</div>
-      <div class="maintenance-text" id="maintenance-reason">Website sedang dalam pemeliharaan. Mohon kembali beberapa saat lagi.</div>
-    </div>
-  </div>
-
-  <!-- WELCOME POPUP -->
-  <div class="modal-overlay" id="welcome-popup">
-    <div class="modal-card" style="max-width:420px;text-align:center;">
-      <button class="modal-close" onclick="closeModal('welcome-popup')"><i class="fas fa-times"></i></button>
-      <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="welcome-popup-logo" alt="Logo"/>
-      <div class="welcome-popup-name" id="welcome-popup-name">Welcome!</div>
-      <div class="welcome-popup-text">Untuk mengetahui perkembangan harga atau mendapatkan update, silahkan join saluran WhatsApp kami sekarang.</div>
-      <a href="https://whatsapp.com/channel/0029Vb7uxdI0AgW8JYtSdH0E" target="_blank" class="btn-whatsapp">
-        <i class="fab fa-whatsapp" style="font-size:18px;"></i> Join Saluran WhatsApp
-      </a>
-    </div>
-  </div>
-
-  <!-- NOTIFICATION POPUP 2 -->
-  <div class="modal-overlay" id="notif2-popup">
-    <div class="modal-card" style="max-width:400px;text-align:center;">
-      <button class="modal-close" onclick="closeModal('notif2-popup')"><i class="fas fa-times"></i></button>
-      <div id="notif2-icon" style="font-size:48px;margin-bottom:16px;color:var(--accent-gold);"></div>
-      <div id="notif2-title" style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:12px;"></div>
-      <div id="notif2-text" style="font-size:14px;color:var(--text-secondary);line-height:1.6;"></div>
-    </div>
-  </div>
-
-  <!-- RESET KEY POPUP -->
-  <div class="modal-overlay" id="reset-key-popup">
-    <div class="modal-card" style="max-width:480px;">
-      <button class="modal-close" onclick="closeModal('reset-key-popup')"><i class="fas fa-times"></i></button>
-      <div class="modal-header">
-        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="modal-header-logo" alt="Logo"/>
-        <div>
-          <div class="modal-title">Reset Key System</div>
-          <div class="modal-subtitle">Reset device binding</div>
+      <div class="topbar-center">
+        <div class="topbar-greeting">
+          <i class="fas fa-hand-peace" style="color:#a855f7;margin-right:6px"></i>
+          Hello, <span class="username-display">User</span>
         </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label"><i class="fas fa-key" style="margin-right:6px;color:var(--purple-light)"></i>Masukan Key / Device ID</label>
-        <input type="text" id="reset-key-input" class="form-control" placeholder="Contoh: 8279290197"/>
-      </div>
-      <button class="btn-primary" onclick="doResetKey()" style="margin-bottom:12px;">
-        <i class="fas fa-sync-alt" style="margin-right:8px;"></i>RESET
-      </button>
-      <div class="terminal-display" id="reset-terminal" style="display:none;"></div>
-    </div>
-  </div>
-
-  <!-- PRODUCT DETAIL POPUP -->
-  <div class="modal-overlay" id="product-popup">
-    <div class="modal-card" style="max-width:560px;">
-      <button class="modal-close" onclick="closeModal('product-popup')"><i class="fas fa-times"></i></button>
-      <div class="modal-header">
-        <img id="pp-img" src="" class="modal-header-logo" alt="Product" style="border-radius:10px;"/>
-        <div>
-          <div class="modal-title" id="pp-name">Nama Produk</div>
-          <div class="modal-subtitle" id="pp-desc">Deskripsi produk</div>
-        </div>
-      </div>
-
-      <!-- Tab Harga -->
-      <div class="price-tabs" id="pp-tabs">
-        <div class="price-tab active" id="tab-full" onclick="switchPriceTab('full')">
-          <i class="fas fa-key" style="margin-right:4px;"></i>Access Full Key
-        </div>
-        <div class="price-tab" id="tab-rental" onclick="switchPriceTab('rental')" style="display:none;">
-          <i class="fas fa-clock" style="margin-right:4px;"></i>Rental Key
-        </div>
-      </div>
-
-      <div class="price-options" id="pp-price-options"></div>
-
-      <!-- Quantity -->
-      <div class="quantity-row">
-        <div class="quantity-label"><i class="fas fa-layer-group" style="margin-right:6px;color:var(--purple-light)"></i>Quantity</div>
-        <div class="quantity-controls">
-          <button class="qty-btn" onclick="changeQty(-1)">−</button>
-          <div class="qty-value" id="qty-display">1</div>
-          <button class="qty-btn" onclick="changeQty(1)">+</button>
-        </div>
-      </div>
-
-      <!-- Promo -->
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label"><i class="fas fa-tag" style="margin-right:6px;color:var(--accent-pink)"></i>Kode Promo <span style="font-size:10px;color:var(--text-muted);text-transform:lowercase;letter-spacing:0;">(Opsional)</span></label>
-        <div style="display:flex;gap:8px;">
-          <input type="text" id="promo-input" class="form-control" placeholder="Masukan kode promo..."/>
-          <button class="btn-secondary" onclick="applyPromo()" style="white-space:nowrap;">Gunakan</button>
-        </div>
-        <div id="promo-result" style="margin-top:6px;font-size:12px;"></div>
-      </div>
-
-      <!-- Nomor WA -->
-      <div class="form-group" style="margin-bottom:12px;">
-        <label class="form-label"><i class="fab fa-whatsapp" style="margin-right:6px;color:var(--accent-green)"></i>Nomor WhatsApp</label>
-        <input type="text" id="wa-input" class="form-control" placeholder="Contoh: 08xxxxxxxxxx"/>
-      </div>
-
-      <!-- Total -->
-      <div class="total-row">
-        <div class="total-label"><i class="fas fa-receipt" style="margin-right:6px;"></i>Total Harga</div>
-        <div class="total-amount" id="pp-total">Rp 0</div>
-      </div>
-
-      <button class="btn-primary" onclick="doBuyNow()">
-        <i class="fas fa-shopping-cart" style="margin-right:8px;"></i>BUY NOW
-      </button>
-    </div>
-  </div>
-
-  <!-- LOG DETAIL POPUP -->
-  <div class="modal-overlay" id="log-detail-popup">
-    <div class="modal-card" style="max-width:460px;">
-      <button class="modal-close" onclick="closeModal('log-detail-popup')"><i class="fas fa-times"></i></button>
-      <div class="modal-header">
-        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="modal-header-logo" alt="Logo"/>
-        <div>
-          <div class="modal-title">Detail Transaksi</div>
-          <div class="modal-subtitle">Log pembelian kamu</div>
-        </div>
-      </div>
-      <div id="log-detail-content"></div>
-    </div>
-  </div>
-
-  <!-- TOPBAR -->
-  <div class="dashboard-wrapper" id="dashboard-content" style="display:none;">
-    <div class="topbar">
-      <div class="topbar-brand">
-        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="topbar-logo" alt="Drip"/>
-        <div class="topbar-name">DRIP CLIENT</div>
       </div>
       <div class="topbar-right">
-        <div class="topbar-user">
-          <i class="fas fa-hand-point-right" style="color:var(--accent-gold)"></i>
-          Hello, <strong id="topbar-username" style="color:var(--text-primary);">User</strong>
-        </div>
-        <div class="topbar-credit">
+        <div class="credit-badge">
           <i class="fas fa-dollar-sign"></i>
-          <span id="topbar-credit">0</span>
+          <span class="credit-display">Rp 0</span>
         </div>
-        <div class="hamburger-btn" onclick="toggleSideNav()">
+        <div class="hamburger-btn" id="hamburger-btn">
           <i class="fas fa-ellipsis-v"></i>
         </div>
       </div>
-    </div>
+    </header>
 
-    <!-- RUNNING TEXT -->
-    <div class="running-text-wrap" id="running-text-wrap" style="display:none;">
-      <div class="running-text-inner">
-        <span class="running-text-content" id="running-text-content">DRIP CLIENT</span>
-        <span class="running-text-sep">⬥</span>
-        <span class="running-text-content" id="running-text-content2">DRIP CLIENT</span>
-        <span class="running-text-sep">⬥</span>
-        <span class="running-text-content" id="running-text-content3">DRIP CLIENT</span>
-      </div>
-    </div>
+    <!-- Quick Nav Overlay -->
+    <div class="nav-overlay" id="nav-overlay"></div>
 
-    <!-- SIDE NAV -->
-    <div class="side-nav" id="side-nav">
-      <div class="side-nav-header">
-        <div class="side-nav-title"><i class="fas fa-bolt" style="margin-right:8px;"></i>Quick Actions</div>
+    <!-- Quick Nav -->
+    <nav class="quick-nav" id="quick-nav">
+      <div class="quick-nav-header">
+        <div class="quick-nav-title"><i class="fas fa-bolt" style="margin-right:6px"></i> Quick Action</div>
       </div>
 
-      <a class="nav-item" onclick="showSection('home-sec');closeSideNav()">
-        <div class="nav-icon"><i class="fas fa-home"></i></div>
-        Dashboard
-      </a>
-      <a class="nav-item" onclick="openModal('reset-key-popup');closeSideNav()">
-        <div class="nav-icon"><i class="fas fa-sync-alt"></i></div>
-        Reset Key
-      </a>
+      <div class="nav-item" id="nav-home">
+        <i class="fas fa-home"></i>
+        <div>
+          <div class="nav-item-text">Beranda</div>
+          <div class="nav-item-sub">Kembali ke dashboard</div>
+        </div>
+      </div>
 
       <div class="nav-divider"></div>
 
-      <a class="nav-item" onclick="showSection('logs-sec');closeSideNav()">
-        <div class="nav-icon"><i class="fas fa-receipt"></i></div>
-        Logs Transaksi
-      </a>
-      <a class="nav-item" onclick="showSection('faq-sec');closeSideNav()">
-        <div class="nav-icon"><i class="fas fa-question-circle"></i></div>
-        FAQ
-      </a>
+      <div class="nav-item" id="nav-reset-key">
+        <i class="fas fa-sync-alt"></i>
+        <div>
+          <div class="nav-item-text">Reset Key</div>
+          <div class="nav-item-sub">Reset device binding key</div>
+        </div>
+      </div>
+
+      <div class="nav-item" id="nav-trx-log">
+        <i class="fas fa-receipt"></i>
+        <div>
+          <div class="nav-item-text">Logs Transaksi</div>
+          <div class="nav-item-sub">Lihat riwayat pembelian</div>
+        </div>
+      </div>
 
       <div class="nav-divider"></div>
 
-      <a class="nav-item" onclick="doLogout()" style="color:var(--accent-pink);">
-        <div class="nav-icon" style="color:var(--accent-pink);background:rgba(255,45,120,0.15);"><i class="fas fa-sign-out-alt"></i></div>
-        Logout
-      </a>
-    </div>
-    <div class="side-overlay" id="side-overlay" onclick="closeSideNav()"></div>
+      <div class="nav-item" onclick="window.open('https://whatsapp.com/channel/0029Vb7uxdI0AgW8JYtSdH0E','_blank')">
+        <i class="fab fa-whatsapp" style="color:#25d366"></i>
+        <div>
+          <div class="nav-item-text">Join WA Channel</div>
+          <div class="nav-item-sub">Update & promo terbaru</div>
+        </div>
+      </div>
 
-    <!-- HOME SECTION -->
-    <div class="main-content" id="home-sec">
-      <div style="margin-top: 0;">
-        <!-- Products -->
+      <div style="padding:20px">
+        <button class="btn-logout" id="btn-logout">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+      </div>
+    </nav>
+
+    <!-- Page Content -->
+    <div class="page-content">
+
+      <!-- Running Text -->
+      <div id="running-text-wrap" style="display:none" class="running-text-wrap fade-in">
+        <div class="running-text-inner">
+          <span>📢 Loading promo info...</span>
+          <span>📢 Loading promo info...</span>
+        </div>
+      </div>
+
+      <!-- Products Section -->
+      <div class="fade-in">
         <div class="section-title">
-          <i class="fas fa-box-open"></i>
-          Produk Tersedia
+          <i class="fas fa-gamepad" style="color:#a855f7"></i>
+          Products
         </div>
         <div class="products-grid" id="products-grid">
-          <div class="empty-state">
-            <i class="fas fa-box-open"></i>
-            <p>Memuat produk...</p>
+          <!-- Products rendered by JS -->
+          <div style="color:var(--text-muted);text-align:center;padding:40px;grid-column:1/-1">
+            <i class="fas fa-spinner fa-spin" style="font-size:2rem;color:#8b00e0;margin-bottom:16px;display:block"></i>
+            Loading products...
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- LOGS SECTION -->
-    <div class="main-content" id="logs-sec" style="display:none;">
-      <div class="section-title">
-        <i class="fas fa-receipt"></i>
-        Logs Transaksi Saya
-      </div>
-      <div class="logs-grid" id="user-logs-grid">
-        <div class="empty-state">
-          <i class="fas fa-receipt"></i>
-          <p>Belum ada transaksi.</p>
+      <!-- FAQ Section -->
+      <div class="faq-section fade-in">
+        <div class="section-title">
+          <i class="fas fa-question-circle" style="color:#a855f7"></i>
+          FAQ
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span><i class="fas fa-circle" style="font-size:0.5rem;color:#8b00e0;margin-right:10px"></i>Bagaimana cara membeli key?</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">Pilih produk yang Anda inginkan, klik card produk, pilih paket (Access Full Key atau Rental), masukkan nomor WhatsApp, dan klik "Buy Now". Pastikan saldo Anda mencukupi. Admin akan memproses pesanan Anda dan mengirimkan key.</div>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span><i class="fas fa-circle" style="font-size:0.5rem;color:#8b00e0;margin-right:10px"></i>Bagaimana cara top up saldo / credit?</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">Hubungi admin melalui saluran WhatsApp kami untuk proses top up saldo. Admin akan mengirimkan saldo ke akun Anda setelah konfirmasi pembayaran.</div>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span><i class="fas fa-circle" style="font-size:0.5rem;color:#8b00e0;margin-right:10px"></i>Apa perbedaan Access Full Key dan Rental Key?</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">Access Full Key memberikan akses berdasarkan durasi hari (1 hari, 3 hari, dst). Rental Keys memberikan akses berdasarkan durasi jam (1 jam, 2 jam, dst). Pilih sesuai kebutuhan Anda.</div>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span><i class="fas fa-circle" style="font-size:0.5rem;color:#8b00e0;margin-right:10px"></i>Bagaimana cara menggunakan kode promo?</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">Saat memilih produk dan paket, masukkan kode promo di kolom "Kode Promo" lalu klik "Pakai". Sistem akan otomatis memvalidasi dan menerapkan diskon pada harga pembelian Anda.</div>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span><i class="fas fa-circle" style="font-size:0.5rem;color:#8b00e0;margin-right:10px"></i>Apakah key dijamin aman dari banned?</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">Ya, Drip Client menggunakan teknologi anti-ban terbaru. Key kami didesain untuk keamanan maksimal. Namun tetap gunakan dengan bijak sesuai petunjuk yang diberikan bersama key.</div>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span><i class="fas fa-circle" style="font-size:0.5rem;color:#8b00e0;margin-right:10px"></i>Berapa lama proses pengiriman key?</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">Admin memproses pesanan dalam waktu 1-30 menit tergantung jam operasional. Key akan langsung muncul di menu "Logs Transaksi" Anda setelah diapprove admin.</div>
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question">
+            <span><i class="fas fa-circle" style="font-size:0.5rem;color:#8b00e0;margin-right:10px"></i>Apa yang harus dilakukan jika key tidak berfungsi?</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+          <div class="faq-answer">
+            <div class="faq-answer-inner">Coba fitur "Reset Key" di menu Quick Action (klik ikon titik 3). Jika masih bermasalah, hubungi admin melalui saluran WhatsApp kami dengan menyertakan ID transaksi Anda.</div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- FAQ SECTION -->
-    <div class="main-content" id="faq-sec" style="display:none;">
-      <div class="section-title">
-        <i class="fas fa-question-circle"></i>
-        Frequently Asked Questions
-      </div>
-      <div class="faq-section" id="faq-container">
-        <!-- FAQ items injected by JS -->
+      <!-- Footer -->
+      <div style="text-align:center;padding:30px 0;color:var(--text-muted);font-size:0.78rem;font-family:var(--font-mono);border-top:1px solid rgba(139,0,224,0.15)">
+        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" style="width:32px;height:32px;border-radius:50%;border:1px solid #8b00e0;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto">
+        © 2025 DRIP CLIENT · All Rights Reserved<br>
+        <span style="color:#8b00e0;margin-top:4px;display:block">Buy Key · Fast · Secure · Trusted</span>
       </div>
     </div>
-  </div>
 
+  </div><!-- end main-content -->
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
   <script src="script.js"></script>
-  <script>
-    initParticles();
-    startLoadingScreen('dashboard-content', true);
-  </script>
+  <script>initHome();</script>
 </body>
 </html>

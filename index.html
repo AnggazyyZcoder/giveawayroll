@@ -1,81 +1,98 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Drip Client – Login</title>
-  <link rel="stylesheet" href="style.css"/>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <link rel="icon" href="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" type="image/jpeg"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drip Client - Login</title>
+  <meta name="description" content="Drip Client - Buy Key Platform">
+  <link rel="icon" href="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" type="image/jpeg">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <canvas id="particles-canvas"></canvas>
 
-  <!-- LOADING SCREEN -->
+  <!-- Loading Screen -->
   <div id="loading-screen">
-    <div class="loading-logo-wrap">
-      <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="loading-logo-img" alt="Drip Client"/>
-      <div class="loading-title-chars" id="loading-chars"></div>
-      <div class="loading-subtitle">Buy Key Platform</div>
-    </div>
+    <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Logo" class="loading-logo">
+    <div class="loading-title"></div>
     <div class="loading-bar-wrap">
-      <div class="loading-bar-fill"></div>
+      <div class="loading-bar"></div>
+    </div>
+    <div class="loading-text">Initializing System...</div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="main-content" style="display:none;min-height:100vh" class="main-content">
+    <div class="auth-container">
+      <div class="auth-card">
+        <div class="auth-logo-wrap">
+          <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Drip Client" class="auth-logo">
+          <div class="auth-title"><i class="fas fa-shield-alt" style="color:#8b00e0;margin-right:8px"></i>Login To Dashboard</div>
+          <div class="auth-subtitle">Masukkan kredensial Anda untuk akses</div>
+        </div>
+
+        <form id="login-form" autocomplete="off" novalidate>
+          <!-- Honeypot -->
+          <input type="text" name="website" style="display:none" tabindex="-1" autocomplete="off">
+
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-user" style="margin-right:6px"></i>Username</label>
+            <input
+              type="text"
+              id="login-username"
+              class="form-control"
+              placeholder="Masukkan username..."
+              autocomplete="username"
+              maxlength="50"
+              required
+            >
+          </div>
+
+          <div class="form-group">
+            <label class="form-label"><i class="fas fa-lock" style="margin-right:6px"></i>Password</label>
+            <div class="input-icon-wrap">
+              <input
+                type="password"
+                id="login-password"
+                class="form-control"
+                placeholder="Masukkan password..."
+                autocomplete="current-password"
+                maxlength="100"
+                required
+              >
+              <i class="fas fa-eye input-eye"></i>
+            </div>
+          </div>
+
+          <div class="remember-row">
+            <label class="remember-check">
+              <input type="checkbox" id="remember-me">
+              <span>Remember Me</span>
+            </label>
+            <div class="auth-link">
+              Tidak punya akun? <a href="register.html">Daftar</a>
+            </div>
+          </div>
+
+          <button type="submit" id="login-btn" class="btn-primary">
+            <i class="fas fa-sign-in-alt"></i> Login
+          </button>
+        </form>
+
+        <div style="margin-top:20px;text-align:center;padding-top:16px;border-top:1px solid rgba(139,0,224,0.2)">
+          <div style="font-size:0.75rem;color:var(--text-muted);font-family:var(--font-mono)">
+            <i class="fas fa-shield-halved" style="color:#8b00e0;margin-right:6px"></i>
+            Protected by Drip Security System
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Welcome Animation Screen -->
-  <div id="welcome-screen" style="display:none;">
-    <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" style="width:80px;height:80px;border-radius:50%;border:3px solid var(--purple-main);box-shadow:0 0 30px var(--purple-main);object-fit:cover;" alt="Logo"/>
-    <div class="welcome-text" id="welcome-msg"></div>
-    <div style="font-size:14px;color:var(--text-muted);letter-spacing:2px;">REDIRECTING...</div>
-  </div>
-
-  <!-- AUTH AREA -->
-  <div class="auth-page" id="auth-area" style="display:none;">
-    <div class="auth-card">
-      <div class="auth-logo-section">
-        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="auth-logo" alt="Drip Client"/>
-        <div class="auth-title">DRIP CLIENT</div>
-        <div class="auth-subtitle">Login to Dashboard</div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label"><i class="fas fa-user" style="margin-right:6px;color:var(--purple-light)"></i>Username</label>
-        <div style="position:relative;">
-          <input type="text" id="login-username" class="form-control" placeholder="Masukan username..." autocomplete="username"/>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label"><i class="fas fa-lock" style="margin-right:6px;color:var(--purple-light)"></i>Password</label>
-        <div style="position:relative;">
-          <input type="password" id="login-password" class="form-control" placeholder="Masukan password..." autocomplete="current-password"/>
-          <span class="input-icon input-group-label" onclick="togglePass('login-password','eye-login')">
-            <i class="fas fa-eye" id="eye-login"></i>
-          </span>
-        </div>
-      </div>
-
-      <div class="remember-row">
-        <label class="checkbox-wrap">
-          <input type="checkbox" id="remember-me"/>
-          <span>Remember Me</span>
-        </label>
-        <a href="register.html" class="auth-link">Tidak punya akun? <strong>Daftar</strong></a>
-      </div>
-
-      <button class="btn-primary" id="login-btn" onclick="doLogin()">
-        <i class="fas fa-sign-in-alt" style="margin-right:8px;"></i>LOGIN
-      </button>
-
-      <div id="login-msg" style="margin-top:12px;text-align:center;font-size:13px;"></div>
-    </div>
-  </div>
-
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
   <script src="script.js"></script>
-  <script>
-    initParticles();
-    startLoadingScreen('auth-area');
-  </script>
+  <script>initLogin();</script>
 </body>
 </html>

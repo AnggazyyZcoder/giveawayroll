@@ -1,95 +1,92 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Drip Client - Register</title>
-<link rel="stylesheet" href="style.css"/>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Drip Client – Register</title>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="icon" href="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" type="image/jpeg"/>
 </head>
 <body>
-<canvas id="particles-canvas"></canvas>
+  <canvas id="particles-canvas"></canvas>
 
-<!-- LOADING SCREEN -->
-<div id="loading-screen">
-  <div class="loading-logo-wrapper">
-    <div class="auth-logo-animated">
-      <img class="loading-logo-img" src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Drip Client"/>
+  <!-- LOADING SCREEN -->
+  <div id="loading-screen">
+    <div class="loading-logo-wrap">
+      <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="loading-logo-img" alt="Drip Client"/>
+      <div class="loading-title-chars" id="loading-chars"></div>
+      <div class="loading-subtitle">Create Account</div>
+    </div>
+    <div class="loading-bar-wrap">
+      <div class="loading-bar-fill"></div>
     </div>
   </div>
-  <div class="loading-title">
-    <span>D</span><span>R</span><span>I</span><span>P</span>
-    <span class="space"> </span>
-    <span>C</span><span>L</span><span>I</span><span>E</span><span>N</span><span>T</span>
-  </div>
-  <div class="loading-subtitle">Create Account</div>
-  <div class="loading-bar-container">
-    <div class="loading-bar"></div>
-  </div>
-</div>
 
-<div class="main-wrapper" id="auth-main" style="display:none;">
-  <div class="auth-container">
+  <!-- AUTH AREA -->
+  <div class="auth-page" id="auth-area" style="display:none;">
     <div class="auth-card">
-      <div class="auth-logo-area">
-        <div class="auth-logo-animated">
-          <img class="auth-logo" src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Logo"/>
-        </div>
-        <div>
-          <div class="auth-title"><span>Drip Client</span></div>
-          <div style="text-align:center;font-size:13px;color:var(--text-muted);letter-spacing:2px;margin-top:4px;">CREATE ACCOUNT</div>
+      <div class="auth-logo-section">
+        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="auth-logo" alt="Drip Client"/>
+        <div class="auth-title">DRIP CLIENT</div>
+        <div class="auth-subtitle">Create New Account</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label"><i class="fas fa-user" style="margin-right:6px;color:var(--purple-light)"></i>Username</label>
+        <div style="position:relative;">
+          <input type="text" id="reg-username" class="form-control" placeholder="Buat username unik..." autocomplete="username"/>
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label"><i class="fas fa-user" style="color:var(--purple-neon);margin-right:6px;"></i>Username</label>
-        <div class="input-wrapper">
-          <input id="reg-user" class="form-input" type="text" placeholder="Buat username unik" autocomplete="username"/>
+        <label class="form-label"><i class="fas fa-envelope" style="margin-right:6px;color:var(--purple-light)"></i>Email (Opsional)</label>
+        <div style="position:relative;">
+          <input type="email" id="reg-email" class="form-control" placeholder="Email kamu..." autocomplete="email"/>
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label"><i class="fas fa-envelope" style="color:var(--purple-neon);margin-right:6px;"></i>Email (Opsional)</label>
-        <div class="input-wrapper">
-          <input id="reg-email" class="form-input" type="email" placeholder="Email kamu (opsional)"/>
+        <label class="form-label"><i class="fas fa-lock" style="margin-right:6px;color:var(--purple-light)"></i>Password</label>
+        <div style="position:relative;">
+          <input type="password" id="reg-password" class="form-control" placeholder="Minimal 6 karakter..." autocomplete="new-password"/>
+          <span class="input-icon input-group-label" onclick="togglePass('reg-password','eye-reg1')">
+            <i class="fas fa-eye" id="eye-reg1"></i>
+          </span>
         </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label"><i class="fas fa-lock" style="color:var(--purple-neon);margin-right:6px;"></i>Password</label>
-        <div class="input-wrapper">
-          <input id="reg-pass" class="form-input" type="password" placeholder="Buat password kuat" autocomplete="new-password"/>
-          <button class="input-icon-btn" type="button" onclick="togglePass('reg-pass',this)">
-            <i class="fas fa-eye"></i>
-          </button>
+        <label class="form-label"><i class="fas fa-lock" style="margin-right:6px;color:var(--purple-light)"></i>Konfirmasi Password</label>
+        <div style="position:relative;">
+          <input type="password" id="reg-password2" class="form-control" placeholder="Ulangi password..." autocomplete="new-password"/>
+          <span class="input-icon input-group-label" onclick="togglePass('reg-password2','eye-reg2')">
+            <i class="fas fa-eye" id="eye-reg2"></i>
+          </span>
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="form-label"><i class="fas fa-lock" style="color:var(--purple-neon);margin-right:6px;"></i>Konfirmasi Password</label>
-        <div class="input-wrapper">
-          <input id="reg-pass2" class="form-input" type="password" placeholder="Ulangi password" autocomplete="new-password"/>
-          <button class="input-icon-btn" type="button" onclick="togglePass('reg-pass2',this)">
-            <i class="fas fa-eye"></i>
-          </button>
-        </div>
+      <div class="notice">
+        <i class="fas fa-shield-alt"></i>
+        Data kamu dienkripsi dan aman. Jangan bagikan password kepada siapapun.
       </div>
 
-      <button class="btn-primary" id="btn-register" onclick="doRegister()">
+      <button class="btn-primary" id="reg-btn" onclick="doRegister()">
         <i class="fas fa-user-plus" style="margin-right:8px;"></i>DAFTAR SEKARANG
       </button>
 
-      <div class="auth-footer" style="margin-top:16px;">
-        Sudah punya akun? <a class="auth-link" href="index.html">Login</a>
+      <div id="reg-msg" style="margin-top:12px;text-align:center;font-size:13px;"></div>
+
+      <div class="auth-footer">
+        Sudah punya akun? <a href="index.html" class="auth-link"><strong>Login</strong></a>
       </div>
     </div>
   </div>
-</div>
 
-<script src="script.js"></script>
-<script>
-  initParticles();
-  startLoadingScreen('auth-main');
-</script>
+  <script src="script.js"></script>
+  <script>
+    initParticles();
+    startLoadingScreen('auth-area');
+  </script>
 </body>
 </html>

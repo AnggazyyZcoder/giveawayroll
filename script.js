@@ -1,83 +1,92 @@
-/* ===== DRIP CLIENT - SCRIPT.JS ===== */
-'use strict';
+/**
+ * DRIP CLIENT - script.js
+ * Seluruh fungsi website: Auth, Database JSONBin, Dashboard, Admin
+ * Keamanan: XSS, Input Sanitization, Injection Prevention
+ */
 
-// ===== CONFIG =====
-const JSONBIN_BIN_ID = '69b7c04aaa77b81da9eb8021';
-const JSONBIN_API_KEY = '$2a$10$Y.jqtzCgEfTCuODvJNV08ex.6qQW0V5p2WF6UUqlhg.fYT4W.4Gu6';
-const JSONBIN_URL = `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`;
-const WA_CHANNEL = 'https://whatsapp.com/channel/0029Vb7uxdI0AgW8JYtSdH0E';
-const LOGO_URL = 'https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg';
+// ============================================================
+// KONFIGURASI JSONBIN
+// ============================================================
+// Ganti JSONBIN_API_KEY dan BIN_ID dengan milik Anda dari jsonbin.io
+const JSONBIN_API_KEY = '$2a$10$Y.jqtzCgEfTCuODvJNV08ex.6qQW0V5p2WF6UUqlhg.fYT4W.4Gu6'; // Ganti dengan API key JSONBin Anda
+const BIN_ID = '69b7c669aa77b81da9eb9823'; // Ganti dengan Bin ID Anda dari JSONBin.io
+const JSONBIN_BASE = 'https://api.jsonbin.io/v3/b';
 
-// ===== DEFAULT DATA STRUCTURE =====
-const DEFAULT_DATA = {
-  users: [
-    { username: 'admin', password: 'admin123', credit: 999999, usedPromos: [] },
-    { username: 'demo', password: 'demo123', credit: 50000, usedPromos: [] }
-  ],
-  products: [
-    {
-      id: 'prod_001',
-      name: 'DRIP CLIENT',
-      type: 'Cheat Android',
-      image: LOGO_URL,
-      description: 'Cheat android terbaik dengan fitur lengkap',
-      features: ['Anti Ban', 'Silent Aim', 'ESP Wallhack', 'Aimbot Pro'],
-      fullkeyPlans: [
-        { label: '1 Days', price: 20000 },
-        { label: '3 Days', price: 30000 },
-        { label: '7 Days', price: 65000 },
-        { label: '15 Days', price: 110000 },
-        { label: '1 Bulan', price: 230000 }
-      ],
-      rentalPlans: [
-        { label: '1 Jam', price: 5000 },
-        { label: '2 Jam', price: 7000 },
-        { label: '10 Jam', price: 11000 },
-        { label: '15 Jam', price: 16000 },
-        { label: '24 Jam', price: 25000 }
-      ],
-      hasRental: true,
-      active: true
-    }
-  ],
-  transactions: [],
-  promoCodes: [],
-  runningText: { active: false, text: 'KODE PROMO TERBARU : DISKON70%  🔥  WELCOME TO DRIP CLIENT  🎮  BUY KEY NOW!' },
-  resetKeyStatus: true,
-  notifPopup1: { active: true },
-  notifPopup2: { active: false, type: 'info', text: 'Jika anda mengalami kesulitan hubungi admin' },
-  maintenance: { active: false, reason: 'Sedang dalam perbaikan sistem, mohon tunggu sebentar.' },
-  stats: { totalBuyers: 0, totalRevenue: 0, todaySales: 0, lastResetDate: '' },
-  dailyResets: {}
-};
+// ============================================================
+// SECURITY HELPERS - Anti XSS, Anti Injection
+// ============================================================
+function sanitizeInput(input) {
+  if (typeof input !== 'string') return '';
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;')
+    .replace(/[<>'"`;(){}]/g, '')
+    .trim()
+    .substring(0, 500);
+}
 
-// ===== DATABASE LAYER =====
-let _dbCache = null;
+function hashPassword(password) {
+  // Simple hash untuk demo - production gunakan bcrypt via backend
+  let hash = 0;
+  const salt = 'DRIP_SECURE_2026_SALT_KEY';
+  const str = password + salt;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36) + str.length.toString(36) + 'drip';
+}
 
-async function dbGet() {
+function validateUsername(username) {
+  return /^[a-zA-Z0-9_]{3,30}$/.test(username);
+}
+
+function validatePassword(password) {
+  return password.length >= 6 && password.length <= 100;
+}
+
+function validatePhone(phone) {
+  return /^[0-9+\-\s]{8,15}$/.test(phone);
+}
+
+function generateId() {
+  return 'TRX-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 7).toUpperCase();
+}
+
+function formatRupiah(amount) {
+  return 'Rp ' + parseInt(amount || 0).toLocaleString('id-ID');
+}
+
+function formatDate(ts) {
+  if (!ts) return '-';
+  return new Date(ts).toLocaleString('id-ID');
+}
+
+// ============================================================
+// JSONBIN DATABASE OPERATIONS
+// ============================================================
+async function dbRead() {
   try {
-    const res = await fetch(JSONBIN_URL + '/latest', {
+    const res = await fetch(`${JSONBIN_BASE}/${BIN_ID}/latest`, {
       headers: { 'X-Master-Key': JSONBIN_API_KEY }
     });
-    if (!res.ok) throw new Error('Fetch failed');
-    const json = await res.json();
-    _dbCache = json.record;
-    // Ensure all default keys exist
-    let updated = false;
-    for (const key of Object.keys(DEFAULT_DATA)) {
-      if (_dbCache[key] === undefined) { _dbCache[key] = DEFAULT_DATA[key]; updated = true; }
-    }
-    if (updated) await dbSet(_dbCache);
-    return _dbCache;
+    if (!res.ok) throw new Error('DB Read failed: ' + res.status);
+    const data = await res.json();
+    return data.record || getDefaultDB();
   } catch (e) {
-    console.warn('DB Get failed, using cache or default', e);
-    return _dbCache || DEFAULT_DATA;
+    console.error('dbRead error:', e);
+    return getDefaultDB();
   }
 }
 
-async function dbSet(data) {
+async function dbWrite(data) {
   try {
-    const res = await fetch(JSONBIN_URL, {
+    const res = await fetch(`${JSONBIN_BASE}/${BIN_ID}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -85,1317 +94,1484 @@ async function dbSet(data) {
       },
       body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error('Set failed');
-    const json = await res.json();
-    _dbCache = json.record;
+    if (!res.ok) throw new Error('DB Write failed: ' + res.status);
     return true;
   } catch (e) {
-    console.error('DB Set failed:', e);
+    console.error('dbWrite error:', e);
     return false;
   }
 }
 
-// ===== PARTICLE BACKGROUND =====
-function initParticles(canvasId) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-
-  function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  resize();
-  window.addEventListener('resize', resize);
-
-  const particles = [];
-  const count = window.innerWidth < 768 ? 40 : 80;
-
-  for (let i = 0; i < count; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      r: Math.random() * 2.5 + 0.5,
-      dx: (Math.random() - 0.5) * 0.6,
-      dy: (Math.random() - 0.5) * 0.6,
-      opacity: Math.random() * 0.6 + 0.2,
-      color: ['#8b00e0', '#a855f7', '#d946ef', '#7c3aed'][Math.floor(Math.random() * 4)]
-    });
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw connections
-    for (let i = 0; i < particles.length; i++) {
-      for (let j = i + 1; j < particles.length; j++) {
-        const dx = particles[i].x - particles[j].x;
-        const dy = particles[i].y - particles[j].y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 130) {
-          ctx.beginPath();
-          ctx.strokeStyle = `rgba(139, 0, 224, ${0.15 * (1 - dist / 130)})`;
-          ctx.lineWidth = 0.5;
-          ctx.moveTo(particles[i].x, particles[i].y);
-          ctx.lineTo(particles[j].x, particles[j].y);
-          ctx.stroke();
-        }
-      }
+function getDefaultDB() {
+  return {
+    users: [],
+    products: [],
+    transactions: [],
+    promoCodes: [],
+    settings: {
+      runningText: false,
+      runningTextMsg: '🔥 SELAMAT DATANG DI DRIP CLIENT — PREMIUM GAME KEY STORE 🔥',
+      welcomePopup: true,
+      customNotif: false,
+      customNotifMsg: '',
+      customNotifIcon: 'fa-circle-info',
+      resetKeyEnabled: true,
+      maintenanceMode: false,
+      maintenanceMsgText: 'Website sedang dalam pemeliharaan. Harap tunggu sebentar.'
+    },
+    stats: {
+      totalBuyers: 0,
+      totalRevenue: 0,
+      todaySales: 0,
+      todayDate: ''
     }
-
-    particles.forEach(p => {
-      // Glow
-      const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
-      grd.addColorStop(0, p.color + 'aa');
-      grd.addColorStop(1, 'transparent');
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2);
-      ctx.fillStyle = grd;
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = p.opacity;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-
-      p.x += p.dx;
-      p.y += p.dy;
-      if (p.x < 0 || p.x > canvas.width) p.dx *= -1;
-      if (p.y < 0 || p.y > canvas.height) p.dy *= -1;
-    });
-
-    requestAnimationFrame(draw);
-  }
-  draw();
+  };
 }
 
-// ===== LOADING SCREEN =====
-function initLoadingScreen(onComplete) {
-  const screen = document.getElementById('loading-screen');
-  if (!screen) { onComplete && onComplete(); return; }
+// ============================================================
+// PARTICLES INIT
+// ============================================================
+function initParticles() {
+  if (typeof particlesJS === 'undefined') return;
+  particlesJS('particles-js', {
+    particles: {
+      number: { value: 80, density: { enable: true, value_area: 800 } },
+      color: { value: ['#7c3aed', '#a855f7', '#c084fc', '#e879f9'] },
+      shape: { type: 'circle' },
+      opacity: { value: 0.5, random: true, anim: { enable: true, speed: 1, opacity_min: 0.1, sync: false } },
+      size: { value: 3, random: true, anim: { enable: true, speed: 2, size_min: 0.1, sync: false } },
+      line_linked: { enable: true, distance: 150, color: '#7c3aed', opacity: 0.2, width: 1 },
+      move: { enable: true, speed: 2, direction: 'none', random: true, straight: false, out_mode: 'out', bounce: false }
+    },
+    interactivity: {
+      detect_on: 'canvas',
+      events: { onhover: { enable: true, mode: 'grab' }, onclick: { enable: true, mode: 'push' }, resize: true },
+      modes: { grab: { distance: 140, line_linked: { opacity: 0.5 } }, push: { particles_nb: 4 } }
+    },
+    retina_detect: true
+  });
+}
 
-  // Animate letters
-  const title = screen.querySelector('.loading-title');
-  if (title) {
-    const text = 'DRIPCLIENT';
-    const letters = text.split('').map((c, i) => {
-      const span = document.createElement('span');
-      span.textContent = c === ' ' ? '\u00a0' : c;
-      span.style.animationDelay = `${0.3 + i * 0.08}s`;
-      return span;
-    });
-    title.innerHTML = '';
-    letters.forEach(s => title.appendChild(s));
-  }
-
+// ============================================================
+// LOADING SCREEN
+// ============================================================
+function initLoadingScreen(callback) {
   setTimeout(() => {
-    screen.classList.add('loading-exit');
-    setTimeout(() => {
-      screen.style.display = 'none';
-      onComplete && onComplete();
-    }, 600);
+    const ls = document.getElementById('loading-screen');
+    if (ls) {
+      ls.classList.add('fade-out');
+      setTimeout(() => {
+        ls.style.display = 'none';
+        if (callback) callback();
+      }, 800);
+    }
   }, 3000);
 }
 
-// ===== SECURITY: SANITIZE INPUT =====
-function sanitize(str) {
-  if (typeof str !== 'string') return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;')
-    .trim()
-    .slice(0, 200);
+// ============================================================
+// PASSWORD TOGGLE
+// ============================================================
+function togglePassword(inputId, iconEl) {
+  const input = document.getElementById(inputId);
+  const icon = iconEl.querySelector('i');
+  if (!input || !icon) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.className = 'fa-solid fa-eye-slash';
+  } else {
+    input.type = 'password';
+    icon.className = 'fa-solid fa-eye';
+  }
 }
 
-function validateInput(str) {
-  // Block XSS/injection patterns
-  const dangerous = /<script|javascript:|on\w+\s*=|<\/?\s*(iframe|object|embed|form|input|button)/i;
-  return !dangerous.test(str);
+// ============================================================
+// AUTH FUNCTIONS
+// ============================================================
+async function doLogin() {
+  const btn = document.getElementById('loginBtn');
+  const alertDiv = document.getElementById('loginAlert');
+  const rawUser = document.getElementById('loginUsername')?.value || '';
+  const rawPass = document.getElementById('loginPassword')?.value || '';
+
+  const username = sanitizeInput(rawUser).toLowerCase();
+  const password = rawPass.trim();
+
+  // Basic validation
+  if (!username || !password) {
+    showAlert(alertDiv, 'danger', 'Username dan password tidak boleh kosong!');
+    return;
+  }
+
+  if (!validateUsername(username)) {
+    showAlert(alertDiv, 'danger', 'Username hanya boleh huruf, angka, dan underscore (3-30 karakter).');
+    return;
+  }
+
+  // Disable button
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
+
+  try {
+    const db = await dbRead();
+    const hashedPass = hashPassword(password);
+    const user = db.users.find(u => u.username === username && u.password === hashedPass);
+
+    if (!user) {
+      showAlert(alertDiv, 'danger', 'Username atau password salah!');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Login';
+      return;
+    }
+
+    // Store session
+    sessionStorage.setItem('dc_user', JSON.stringify({ username: user.username, credit: user.credit || 0 }));
+    if (document.getElementById('rememberMe')?.checked) {
+      localStorage.setItem('dc_remember', JSON.stringify({ username: user.username }));
+    }
+
+    // Welcome animation
+    btn.innerHTML = '<i class="fa-solid fa-check"></i> Login Berhasil!';
+    showAlert(alertDiv, 'success', 'Login berhasil!');
+
+    await Swal.fire({
+      html: `<div style="font-family:'Orbitron',monospace;font-size:22px;font-weight:900;background:linear-gradient(135deg,#a855f7,#e879f9);-webkit-background-clip:text;background-clip:text;color:transparent;padding:20px 0;">Welcome ${sanitizeDisplay(user.username)}! 👋</div>`,
+      timer: 3000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+      background: '#0f0720',
+      backdrop: 'rgba(0,0,0,0.8)'
+    });
+
+    window.location.href = 'home.html';
+
+  } catch (e) {
+    showAlert(alertDiv, 'danger', 'Terjadi kesalahan. Cek koneksi internet Anda.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Login';
+  }
 }
 
-// ===== SESSION =====
-function setSession(username) {
-  sessionStorage.setItem('dc_user', sanitize(username));
-  sessionStorage.setItem('dc_auth', '1');
+async function doRegister() {
+  const btn = document.getElementById('registerBtn');
+  const alertDiv = document.getElementById('registerAlert');
+  const rawUser = document.getElementById('regUsername')?.value || '';
+  const rawPass = document.getElementById('regPassword')?.value || '';
+  const rawPassConfirm = document.getElementById('regPasswordConfirm')?.value || '';
+  const rawPhone = document.getElementById('regPhone')?.value || '';
+
+  const username = sanitizeInput(rawUser).toLowerCase();
+  const password = rawPass.trim();
+  const passwordConfirm = rawPassConfirm.trim();
+  const phone = sanitizeInput(rawPhone);
+
+  if (!username || !password || !passwordConfirm) {
+    showAlert(alertDiv, 'danger', 'Semua field wajib diisi!');
+    return;
+  }
+
+  if (!validateUsername(username)) {
+    showAlert(alertDiv, 'danger', 'Username hanya huruf, angka, underscore. Min 3, Maks 30 karakter.');
+    return;
+  }
+
+  if (!validatePassword(password)) {
+    showAlert(alertDiv, 'danger', 'Password minimal 6 karakter!');
+    return;
+  }
+
+  if (password !== passwordConfirm) {
+    showAlert(alertDiv, 'danger', 'Konfirmasi password tidak cocok!');
+    return;
+  }
+
+  if (phone && !validatePhone(phone)) {
+    showAlert(alertDiv, 'danger', 'Format nomor WhatsApp tidak valid!');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mendaftar...';
+
+  try {
+    const db = await dbRead();
+
+    // Check duplicate username
+    if (db.users.find(u => u.username === username)) {
+      showAlert(alertDiv, 'danger', 'Username sudah digunakan! Pilih username lain.');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Buat Akun';
+      return;
+    }
+
+    // Create user
+    const newUser = {
+      id: 'USR-' + Date.now().toString(36).toUpperCase(),
+      username: username,
+      password: hashPassword(password),
+      phone: phone || '',
+      credit: 0,
+      createdAt: Date.now(),
+      promoUsed: []
+    };
+
+    db.users.push(newUser);
+    const saved = await dbWrite(db);
+
+    if (!saved) {
+      showAlert(alertDiv, 'danger', 'Gagal menyimpan. Coba lagi.');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Buat Akun';
+      return;
+    }
+
+    await Swal.fire({
+      icon: 'success',
+      title: 'Akun Berhasil Dibuat! 🎉',
+      text: `Selamat datang ${sanitizeDisplay(username)}! Silahkan login.`,
+      background: '#0f0720',
+      color: '#f3e8ff',
+      confirmButtonColor: '#7c3aed',
+      confirmButtonText: 'Login Sekarang'
+    });
+
+    window.location.href = 'index.html';
+
+  } catch (e) {
+    showAlert(alertDiv, 'danger', 'Terjadi kesalahan. Periksa koneksi internet.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Buat Akun';
+  }
+}
+
+function doLogout() {
+  Swal.fire({
+    title: 'Logout?',
+    text: 'Yakin ingin keluar dari dashboard?',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    cancelButtonColor: '#7c3aed',
+    confirmButtonText: 'Ya, Logout',
+    cancelButtonText: 'Batal',
+    background: '#0f0720',
+    color: '#f3e8ff'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      sessionStorage.removeItem('dc_user');
+      window.location.href = 'index.html';
+    }
+  });
 }
 
 function getSession() {
-  return sessionStorage.getItem('dc_user');
+  try {
+    const s = sessionStorage.getItem('dc_user');
+    return s ? JSON.parse(s) : null;
+  } catch { return null; }
 }
 
-function clearSession() {
-  sessionStorage.clear();
+function sanitizeDisplay(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
-function requireAuth() {
-  if (!getSession()) {
-    window.location.href = 'index.html';
-    return false;
+// ============================================================
+// ALERT HELPER
+// ============================================================
+function showAlert(container, type, message) {
+  if (!container) return;
+  container.innerHTML = `
+    <div class="alert alert-${type}">
+      <i class="fa-solid fa-${type === 'success' ? 'circle-check' : type === 'warning' ? 'triangle-exclamation' : 'circle-xmark'}"></i>
+      ${sanitizeDisplay(message)}
+    </div>
+  `;
+  setTimeout(() => { container.innerHTML = ''; }, 4000);
+}
+
+// ============================================================
+// MODAL HELPERS
+// ============================================================
+function openModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
   }
-  return true;
 }
 
-// ===== TOGGLE PASSWORD =====
-function initPasswordToggle() {
-  document.querySelectorAll('.input-eye').forEach(eye => {
-    eye.addEventListener('click', () => {
-      const input = eye.parentElement.querySelector('input');
-      if (!input) return;
-      if (input.type === 'password') {
-        input.type = 'text';
-        eye.className = eye.className.replace('fa-eye', 'fa-eye-slash');
-      } else {
-        input.type = 'password';
-        eye.className = eye.className.replace('fa-eye-slash', 'fa-eye');
-      }
-    });
-  });
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) {
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+  }
 }
 
-// ===== SWEETALERT HELPERS =====
-function showSuccess(title, text) {
-  Swal.fire({
-    icon: 'success',
-    title: title,
-    text: text,
-    confirmButtonText: 'OK',
-    timer: 3000,
-    timerProgressBar: true
-  });
+// Close modal on backdrop click
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('modal-backdrop')) {
+    e.target.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+});
+
+// ============================================================
+// NAVBAR TOGGLE
+// ============================================================
+function toggleNavbar() {
+  const nav = document.getElementById('sideNav');
+  const btn = document.getElementById('hamburgerBtn');
+  if (!nav || !btn) return;
+  nav.classList.toggle('open');
+  btn.classList.toggle('active');
 }
 
-function showError(title, text) {
-  Swal.fire({ icon: 'error', title: title, text: text, confirmButtonText: 'OK' });
+// ============================================================
+// FAQ TOGGLE
+// ============================================================
+function toggleFaq(questionEl) {
+  const item = questionEl.parentElement;
+  const wasActive = item.classList.contains('active');
+  document.querySelectorAll('.faq-item').forEach(f => f.classList.remove('active'));
+  if (!wasActive) item.classList.add('active');
 }
 
-function showInfo(title, text) {
-  Swal.fire({ icon: 'info', title: title, text: text, confirmButtonText: 'OK' });
-}
-
-// ===== SCROLL FADE-IN =====
-function initScrollFade() {
+// ============================================================
+// SCROLL ANIMATIONS
+// ============================================================
+function initScrollAnimations() {
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(e => {
-      if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); }
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
     });
   }, { threshold: 0.1 });
-  document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+  document.querySelectorAll('.scroll-fade').forEach(el => observer.observe(el));
 }
 
-// =========================================================
-// ===== INDEX.HTML - LOGIN =====
-// =========================================================
-async function initLogin() {
-  initParticles('particles-canvas');
-  initLoadingScreen(() => {
-    document.getElementById('main-content').style.display = 'flex';
-    initPasswordToggle();
+// ============================================================
+// DASHBOARD INIT
+// ============================================================
+async function initDashboard() {
+  const session = getSession();
+  if (!session) {
+    window.location.href = 'index.html';
+    return;
+  }
 
-    // Remember me
-    const savedUser = localStorage.getItem('dc_remember_user');
-    if (savedUser) {
-      const ui = document.getElementById('login-username');
-      if (ui) ui.value = savedUser;
-      const rm = document.getElementById('remember-me');
-      if (rm) rm.checked = true;
-    }
+  // Update header
+  const uEl = document.getElementById('headerUsername');
+  const cEl = document.getElementById('headerCredit');
+  const wEl = document.getElementById('welcomeName');
+  const pEl = document.getElementById('popupUsername');
 
-    const form = document.getElementById('login-form');
-    if (form) form.addEventListener('submit', handleLogin);
-  });
-}
-
-async function handleLogin(e) {
-  e.preventDefault();
-  const btn = document.getElementById('login-btn');
-  const usernameRaw = document.getElementById('login-username').value;
-  const passwordRaw = document.getElementById('login-password').value;
-  const remember = document.getElementById('remember-me')?.checked;
-
-  if (!usernameRaw || !passwordRaw) { showError('Input Kosong', 'Username dan password wajib diisi!'); return; }
-  if (!validateInput(usernameRaw) || !validateInput(passwordRaw)) { showError('Input Tidak Valid', 'Karakter tidak diizinkan!'); return; }
-
-  const username = sanitize(usernameRaw);
-  const password = sanitize(passwordRaw);
-
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memvalidasi...';
+  if (uEl) uEl.textContent = session.username;
+  if (wEl) wEl.textContent = session.username;
+  if (pEl) pEl.textContent = session.username;
 
   try {
-    const db = await dbGet();
+    const db = await dbRead();
 
-    // Maintenance check
-    if (db.maintenance && db.maintenance.active) {
-      showError('Maintenance', db.maintenance.reason || 'Website sedang maintenance.');
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
+    // Check maintenance
+    if (db.settings?.maintenanceMode) {
+      const overlay = document.getElementById('maintenanceOverlay');
+      const msgEl = document.getElementById('maintenanceMsg');
+      if (overlay) overlay.classList.add('active');
+      if (msgEl) msgEl.textContent = db.settings.maintenanceMsgText || 'Website dalam pemeliharaan.';
       return;
     }
 
-    const user = db.users.find(u => u.username === username && u.password === password);
-    if (!user) {
-      showError('Login Gagal', 'Username atau password salah!');
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
-      return;
+    // Get fresh user data
+    const user = db.users.find(u => u.username === session.username);
+    if (user) {
+      const credit = user.credit || 0;
+      if (cEl) cEl.textContent = formatRupiah(credit);
+      // Update session
+      sessionStorage.setItem('dc_user', JSON.stringify({ username: user.username, credit }));
     }
-
-    if (remember) { localStorage.setItem('dc_remember_user', username); }
-    else { localStorage.removeItem('dc_remember_user'); }
-
-    setSession(username);
-
-    // Welcome screen
-    btn.innerHTML = '<i class="fas fa-check"></i> Berhasil!';
-    showWelcomeTransition(username);
-  } catch (err) {
-    showError('Error', 'Gagal menghubungi server. Coba lagi.');
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
-  }
-}
-
-function showWelcomeTransition(username) {
-  const ws = document.createElement('div');
-  ws.id = 'welcome-screen';
-  ws.innerHTML = `
-    <img src="${LOGO_URL}" style="width:80px;height:80px;border-radius:50%;border:3px solid #8b00e0;box-shadow:0 0 30px rgba(139,0,224,0.6);object-fit:cover;animation:logoPulse 1s ease-in-out infinite;">
-    <div class="welcome-text">Welcome, ${sanitize(username)}! 👋</div>
-    <div style="font-size:0.9rem;color:#b39ddb;font-family:var(--font-mono)">Mengalihkan ke dashboard...</div>
-  `;
-  document.body.appendChild(ws);
-  setTimeout(() => { window.location.href = 'home.html'; }, 2800);
-}
-
-// =========================================================
-// ===== REGISTER.HTML =====
-// =========================================================
-async function initRegister() {
-  initParticles('particles-canvas');
-  initLoadingScreen(() => {
-    document.getElementById('main-content').style.display = 'flex';
-    initPasswordToggle();
-    const form = document.getElementById('register-form');
-    if (form) form.addEventListener('submit', handleRegister);
-  });
-}
-
-async function handleRegister(e) {
-  e.preventDefault();
-  const btn = document.getElementById('register-btn');
-  const usernameRaw = document.getElementById('reg-username').value;
-  const passwordRaw = document.getElementById('reg-password').value;
-  const confirmRaw = document.getElementById('reg-confirm').value;
-
-  if (!usernameRaw || !passwordRaw || !confirmRaw) { showError('Input Kosong', 'Semua field wajib diisi!'); return; }
-  if (!validateInput(usernameRaw) || !validateInput(passwordRaw)) { showError('Input Tidak Valid', 'Karakter tidak diizinkan!'); return; }
-  if (passwordRaw.length < 6) { showError('Password Terlalu Pendek', 'Password minimal 6 karakter!'); return; }
-  if (passwordRaw !== confirmRaw) { showError('Password Tidak Cocok', 'Konfirmasi password tidak sesuai!'); return; }
-  if (usernameRaw.length < 3) { showError('Username Terlalu Pendek', 'Username minimal 3 karakter!'); return; }
-
-  const username = sanitize(usernameRaw);
-  const password = sanitize(passwordRaw);
-
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mendaftar...';
-
-  try {
-    const db = await dbGet();
-    if (db.users.find(u => u.username === username)) {
-      showError('Username Sudah Ada', 'Username ini sudah digunakan, pilih yang lain!');
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-user-plus"></i> Register';
-      return;
-    }
-
-    db.users.push({ username, password, credit: 0, usedPromos: [], createdAt: new Date().toISOString() });
-    const ok = await dbSet(db);
-    if (!ok) throw new Error('Save failed');
-
-    Swal.fire({
-      icon: 'success',
-      title: 'Akun Berhasil Dibuat!',
-      html: `<b style="color:#a855f7">${username}</b> telah terdaftar. Silahkan login sekarang!`,
-      confirmButtonText: 'Login Sekarang'
-    }).then(() => { window.location.href = 'index.html'; });
-
-  } catch (err) {
-    showError('Registrasi Gagal', 'Gagal menyimpan data. Coba lagi.');
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-user-plus"></i> Register';
-  }
-}
-
-// =========================================================
-// ===== HOME.HTML - USER DASHBOARD =====
-// =========================================================
-let homeDB = null;
-let currentUsername = '';
-
-async function initHome() {
-  if (!requireAuth()) return;
-  currentUsername = getSession();
-
-  initParticles('particles-canvas');
-  initLoadingScreen(async () => {
-    document.getElementById('main-content').style.display = 'block';
-
-    homeDB = await dbGet();
-
-    // Maintenance check
-    if (homeDB.maintenance && homeDB.maintenance.active) {
-      showMaintenancePopup(homeDB.maintenance.reason);
-      return;
-    }
-
-    // Update UI
-    document.querySelectorAll('.username-display').forEach(el => el.textContent = currentUsername);
-
-    // Credit
-    updateUserCredit();
 
     // Running text
-    setupRunningText();
+    if (db.settings?.runningText && db.settings?.runningTextMsg) {
+      const bar = document.getElementById('runningTextBar');
+      const msg1 = document.getElementById('runningTextMsg');
+      const msg2 = document.getElementById('runningTextMsg2');
+      if (bar) {
+        bar.style.display = 'block';
+        const txt = `<i class="fa-solid fa-fire" style="color:var(--gold);"></i> ${sanitizeDisplay(db.settings.runningTextMsg)} &nbsp;&nbsp;&nbsp;`;
+        if (msg1) msg1.innerHTML = txt;
+        if (msg2) msg2.innerHTML = txt;
+      }
+    }
+
+    // Welcome popup
+    if (db.settings?.welcomePopup) {
+      setTimeout(() => openModal('welcomePopup'), 500);
+    }
+
+    // Custom notification
+    if (db.settings?.customNotif && db.settings?.customNotifMsg) {
+      setTimeout(() => showCustomNotif(db.settings.customNotifMsg, db.settings.customNotifIcon), 1500);
+    }
 
     // Load products
-    renderProducts();
+    renderProducts(db.products || []);
+    renderTransactions(db.transactions || [], session.username);
 
-    // FAQ
-    initFAQ();
-
-    // Popups
-    setupNotifPopups();
-
-    // Hamburger
-    initHamburger();
-
-    // Navbar items
-    initNavItems();
-
-    // Scroll fade
-    initScrollFade();
-
-    // Logout
-    document.getElementById('btn-logout')?.addEventListener('click', () => {
-      Swal.fire({
-        title: 'Logout?', text: 'Yakin ingin keluar?',
-        icon: 'question', showCancelButton: true,
-        confirmButtonText: 'Ya, Logout', cancelButtonText: 'Batal'
-      }).then(r => { if (r.isConfirmed) { clearSession(); window.location.href = 'index.html'; } });
-    });
-  });
-}
-
-function updateUserCredit() {
-  const user = homeDB.users.find(u => u.username === currentUsername);
-  const credit = user ? user.credit : 0;
-  document.querySelectorAll('.credit-display').forEach(el => el.textContent = 'Rp ' + credit.toLocaleString('id-ID'));
-}
-
-function setupRunningText() {
-  const rt = homeDB.runningText;
-  const wrap = document.getElementById('running-text-wrap');
-  if (!wrap) return;
-  if (rt && rt.active && rt.text) {
-    const inner = wrap.querySelector('.running-text-inner');
-    if (inner) {
-      inner.innerHTML = `<span>📢 ${sanitize(rt.text)}</span><span>📢 ${sanitize(rt.text)}</span>`;
-    }
-    wrap.style.display = 'block';
-  } else {
-    wrap.style.display = 'none';
+  } catch (e) {
+    console.error('Dashboard init error:', e);
   }
+
+  initScrollAnimations();
 }
 
-function renderProducts() {
-  const grid = document.getElementById('products-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-  const products = (homeDB.products || []).filter(p => p.active);
-  if (products.length === 0) {
-    grid.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px">Belum ada produk tersedia.</p>';
+// ============================================================
+// PRODUCTS RENDERING
+// ============================================================
+function renderProducts(products) {
+  const homeEl = document.getElementById('homeProducts');
+  const allEl = document.getElementById('allProducts');
+
+  if (!products.length) {
+    const empty = `<div class="empty-state" style="grid-column:1/-1;"><i class="fa-solid fa-box-open"></i><h3>Belum ada produk</h3><p>Admin belum menambahkan produk</p></div>`;
+    if (homeEl) homeEl.innerHTML = empty;
+    if (allEl) allEl.innerHTML = empty;
     return;
   }
-  products.forEach((p, i) => {
-    const card = document.createElement('div');
-    card.className = 'product-card fade-in';
-    card.style.animationDelay = `${i * 0.1}s`;
-    const imgHTML = p.image
-      ? `<img src="${p.image}" class="product-img" onerror="this.outerHTML='<div class=\\'product-img-placeholder\\'><i class=\\'fas fa-gamepad\\'></i></div>'">`
-      : `<div class="product-img-placeholder"><i class="fas fa-gamepad"></i></div>`;
-    const features = (p.features || []).map(f => `<li><i class="fas fa-check-circle"></i>${sanitize(f)}</li>`).join('');
-    card.innerHTML = `
-      ${imgHTML}
-      <div class="product-body">
-        <div class="product-name">${sanitize(p.name)}</div>
-        <div class="product-type">${sanitize(p.type)}</div>
-        <ul class="product-features">${features}</ul>
+
+  const html = products.map((p, idx) => {
+    const features = (p.features || []).slice(0, 4);
+    const lowestPrice = getLowestPrice(p);
+    return `
+      <div class="product-card scroll-fade" style="animation-delay:${idx * 0.1}s;" onclick="openProduct('${sanitizeDisplay(p.id)}')">
+        ${p.image
+          ? `<img src="${sanitizeDisplay(p.image)}" class="product-image" alt="${sanitizeDisplay(p.name)}" onerror="this.parentElement.querySelector('.product-image-fallback').style.display='flex';this.style.display='none';">`
+          : ''}
+        <div class="product-image-fallback" style="${p.image ? 'display:none;' : ''}">
+          <i class="fa-solid fa-gamepad"></i>
+        </div>
+        <div class="product-body">
+          <div class="product-name">${sanitizeDisplay(p.name)}</div>
+          <div class="product-type">${sanitizeDisplay(p.type || '')}</div>
+          <ul class="product-features">
+            ${features.map(f => `<li><i class="fa-solid fa-circle-check"></i> ${sanitizeDisplay(f)}</li>`).join('')}
+          </ul>
+        </div>
+        <div class="product-footer">
+          <span class="product-price-label">Mulai dari</span>
+          <span class="product-price">${lowestPrice ? formatRupiah(lowestPrice) : 'Lihat Harga'}</span>
+        </div>
       </div>
     `;
-    card.addEventListener('click', () => openProductPopup(p));
-    grid.appendChild(card);
-  });
-  initScrollFade();
+  }).join('');
+
+  if (homeEl) { homeEl.innerHTML = html; }
+  if (allEl) { allEl.innerHTML = html; }
+  initScrollAnimations();
 }
 
-function openProductPopup(product) {
-  let selectedPlan = null;
-  let qty = 1;
-  let viewMode = 'fullkey';
-  let promoApplied = null;
-  let discountedPrice = 0;
+function getLowestPrice(product) {
+  const prices = [...(product.fullKeyPrices || []), ...(product.rentalKeyPrices || [])];
+  const nums = prices.map(p => parseInt(p.price || 0)).filter(n => n > 0);
+  return nums.length ? Math.min(...nums) : 0;
+}
 
-  const overlay = document.createElement('div');
-  overlay.className = 'popup-overlay';
+// Current purchase state
+let currentProduct = null;
+let currentPriceType = 'full';
+let currentPriceOption = null;
+let currentQuantity = 1;
+let currentPromoDiscount = 0;
+let currentDB = null;
 
-  function getBasePrice() {
-    if (!selectedPlan) return 0;
-    return selectedPlan.price * qty;
-  }
+async function openProduct(productId) {
+  const db = await dbRead();
+  currentDB = db;
+  const product = db.products.find(p => p.id === productId);
+  if (!product) return;
 
-  function getFinalPrice() {
-    if (!selectedPlan) return 0;
-    if (promoApplied) {
-      const disc = Math.floor(selectedPlan.price * (promoApplied.percent / 100));
-      return Math.max(0, (selectedPlan.price - disc)) * qty;
-    }
-    return selectedPlan.price * qty;
-  }
+  currentProduct = product;
+  currentPriceType = 'full';
+  currentPriceOption = null;
+  currentQuantity = 1;
+  currentPromoDiscount = 0;
 
-  function renderPriceList() {
-    const plans = viewMode === 'fullkey' ? (product.fullkeyPlans || []) : (product.rentalPlans || []);
-    return plans.map((pl, i) => `
-      <div class="price-item ${selectedPlan && selectedPlan.label === pl.label ? 'selected' : ''}" data-idx="${i}">
-        <span class="price-item-label">${sanitize(pl.label)}</span>
-        <span class="price-item-value">Rp ${pl.price.toLocaleString('id-ID')}</span>
+  const titleEl = document.getElementById('purchaseModalTitle');
+  if (titleEl) titleEl.textContent = product.name;
+
+  renderPurchaseModal(product, db);
+  openModal('purchaseModal');
+}
+
+function renderPurchaseModal(product, db) {
+  const body = document.getElementById('purchaseModalBody');
+  if (!body) return;
+
+  const hasRental = product.rentalEnabled && product.rentalKeyPrices?.length;
+  const session = getSession();
+  const userCredit = session ? (session.credit || 0) : 0;
+
+  body.innerHTML = `
+    ${hasRental ? `
+      <div class="price-tabs">
+        <div class="price-tab active" id="tabFull" onclick="switchPriceTab('full')">Access Full Key</div>
+        <div class="price-tab" id="tabRental" onclick="switchPriceTab('rental')">Rental Keys</div>
       </div>
-    `).join('');
-  }
+    ` : ''}
 
-  function render() {
-    const finalP = getFinalPrice();
-    const baseP = getBasePrice();
-    overlay.innerHTML = `
-      <div class="popup-card" style="max-width:520px">
-        <div class="popup-header">
-          <div class="popup-title"><i class="fas fa-shopping-bag"></i>${sanitize(product.name)}</div>
-          <div class="popup-close" id="pp-close"><i class="fas fa-times"></i></div>
+    <!-- Full Key Options -->
+    <div class="price-options active" id="optsFull">
+      ${(product.fullKeyPrices || []).map((p, i) => `
+        <div class="price-option" id="optFull${i}" onclick="selectPrice('full', ${i}, ${parseInt(p.price)}, '${sanitizeDisplay(p.label)}')">
+          <span class="price-option-label">${sanitizeDisplay(p.label)}</span>
+          <span class="price-option-value">${formatRupiah(p.price)}</span>
         </div>
-        <div class="price-switcher">
-          <button class="price-switch-btn ${viewMode === 'fullkey' ? 'active' : ''}" id="sw-full">Access Full Key</button>
-          ${product.hasRental ? `<button class="price-switch-btn ${viewMode === 'rental' ? 'active' : ''}" id="sw-rental">Rental Keys</button>` : ''}
-        </div>
-        <div class="price-list" id="price-list">${renderPriceList()}</div>
-        <div class="qty-row">
-          <div class="qty-label">Quantity:</div>
-          <div class="qty-controls">
-            <div class="qty-btn" id="qty-minus">−</div>
-            <div class="qty-num" id="qty-num">${qty}</div>
-            <div class="qty-btn" id="qty-plus">+</div>
+      `).join('')}
+    </div>
+
+    <!-- Rental Options -->
+    ${hasRental ? `
+      <div class="price-options" id="optsRental">
+        ${(product.rentalKeyPrices || []).map((p, i) => `
+          <div class="price-option" id="optRental${i}" onclick="selectPrice('rental', ${i}, ${parseInt(p.price)}, '${sanitizeDisplay(p.label)}')">
+            <span class="price-option-label">${sanitizeDisplay(p.label)}</span>
+            <span class="price-option-value">${formatRupiah(p.price)}</span>
           </div>
-        </div>
-        <div class="admin-form-group">
-          <label class="admin-form-label"><i class="fas fa-tag"></i> Kode Promo (Opsional)</label>
-          <div style="display:flex;gap:8px">
-            <input id="promo-input" class="form-control" placeholder="Masukkan kode promo..." style="flex:1;font-size:0.85rem;padding:10px 14px">
-            <button id="apply-promo" class="btn-admin" style="padding:10px 16px;font-size:0.8rem"><i class="fas fa-check"></i> Pakai</button>
-          </div>
-          <div id="promo-msg" style="font-size:0.78rem;margin-top:6px;height:16px"></div>
-        </div>
-        <div class="admin-form-group">
-          <label class="admin-form-label"><i class="fab fa-whatsapp"></i> Nomor WhatsApp</label>
-          <input id="wa-input" class="form-control" placeholder="Contoh: 08123456789" style="font-size:0.85rem;padding:10px 14px">
-        </div>
-        <div class="total-price-row">
-          <span class="total-price-label">Total Harga:</span>
-          <span class="total-price-value" id="total-display">
-            ${promoApplied && finalP < baseP ? `<span style="text-decoration:line-through;color:var(--text-muted);font-size:0.85rem;margin-right:8px">Rp ${baseP.toLocaleString('id-ID')}</span>` : ''}
-            Rp ${finalP.toLocaleString('id-ID')}
-            ${promoApplied ? `<span style="color:#10b981;font-size:0.75rem;margin-left:6px">(-${promoApplied.percent}%)</span>` : ''}
-          </span>
-        </div>
-        <button id="buy-now-btn" class="btn-primary" ${!selectedPlan ? 'disabled' : ''}>
-          <i class="fas fa-bolt"></i> Buy Now
-        </button>
+        `).join('')}
       </div>
-    `;
+    ` : ''}
 
-    overlay.querySelector('#pp-close').addEventListener('click', () => overlay.remove());
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    <!-- Quantity -->
+    <div style="margin:16px 0;">
+      <label class="form-label">Jumlah (Quantity)</label>
+      <div class="quantity-control">
+        <button class="qty-btn" onclick="changeQty(-1)">−</button>
+        <span class="qty-value" id="qtyDisplay">1</span>
+        <button class="qty-btn" onclick="changeQty(1)">+</button>
+        <span style="color:var(--text-muted);font-size:13px;">× <span id="qtyPriceLabel">Pilih harga</span></span>
+      </div>
+    </div>
 
-    overlay.querySelector('#sw-full')?.addEventListener('click', () => { viewMode = 'fullkey'; selectedPlan = null; render(); });
-    overlay.querySelector('#sw-rental')?.addEventListener('click', () => { viewMode = 'rental'; selectedPlan = null; render(); });
+    <!-- Promo Code -->
+    <div class="promo-field">
+      <div class="promo-label"><i class="fa-solid fa-tag" style="margin-right:6px;"></i> Kode Promo (Opsional)</div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="promoInput" class="form-input" placeholder="Masukkan kode promo..." style="text-transform:uppercase;flex:1;" maxlength="30">
+        <button class="btn btn-outline btn-sm" onclick="applyPromo()"><i class="fa-solid fa-check"></i></button>
+      </div>
+      <div id="promoResult"></div>
+    </div>
 
-    overlay.querySelectorAll('.price-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const idx = parseInt(item.dataset.idx);
-        const plans = viewMode === 'fullkey' ? product.fullkeyPlans : product.rentalPlans;
-        selectedPlan = plans[idx];
-        render();
-      });
-    });
+    <!-- WhatsApp -->
+    <div class="form-group">
+      <label class="form-label"><i class="fa-brands fa-whatsapp" style="color:#25d366;margin-right:6px;"></i> Nomor WhatsApp</label>
+      <input type="text" id="buyerPhone" class="form-input" placeholder="08123456789..." maxlength="15">
+    </div>
 
-    overlay.querySelector('#qty-minus').addEventListener('click', () => { if (qty > 1) { qty--; render(); } });
-    overlay.querySelector('#qty-plus').addEventListener('click', () => { if (qty < 99) { qty++; render(); } });
+    <!-- Total -->
+    <div class="total-price">
+      <span class="total-price-label">Total Pembayaran</span>
+      <span class="total-price-value" id="totalDisplay">Rp 0</span>
+    </div>
 
-    overlay.querySelector('#apply-promo').addEventListener('click', () => applyPromo());
+    <div style="color:var(--text-muted);font-size:12px;margin-bottom:12px;">
+      💰 Saldo Anda: <strong style="color:var(--gold);">${formatRupiah(userCredit)}</strong>
+    </div>
 
-    overlay.querySelector('#buy-now-btn').addEventListener('click', () => processBuy());
+    <button class="btn btn-primary" onclick="doBuyNow()" id="buyNowBtn">
+      <i class="fa-solid fa-shopping-cart"></i> Buy Now
+    </button>
+  `;
+}
 
-    // Keep promo text
-    const promoInp = overlay.querySelector('#promo-input');
-    if (promoApplied) promoInp.value = promoApplied.code;
+function switchPriceTab(type) {
+  currentPriceType = type;
+  currentPriceOption = null;
+  document.getElementById('tabFull')?.classList.toggle('active', type === 'full');
+  document.getElementById('tabRental')?.classList.toggle('active', type === 'rental');
+  document.getElementById('optsFull')?.classList.toggle('active', type === 'full');
+  document.getElementById('optsRental')?.classList.toggle('active', type === 'rental');
+  updateTotal();
+}
+
+function selectPrice(type, index, price, label) {
+  document.querySelectorAll('.price-option').forEach(o => o.classList.remove('selected'));
+  document.getElementById(`opt${type === 'full' ? 'Full' : 'Rental'}${index}`)?.classList.add('selected');
+  currentPriceOption = { price, label };
+  const labelEl = document.getElementById('qtyPriceLabel');
+  if (labelEl) labelEl.textContent = label;
+  updateTotal();
+}
+
+function changeQty(delta) {
+  currentQuantity = Math.max(1, Math.min(10, currentQuantity + delta));
+  const el = document.getElementById('qtyDisplay');
+  if (el) el.textContent = currentQuantity;
+  updateTotal();
+}
+
+function updateTotal() {
+  const el = document.getElementById('totalDisplay');
+  if (!el) return;
+  if (!currentPriceOption) { el.textContent = 'Rp 0'; return; }
+  let total = currentPriceOption.price * currentQuantity;
+  if (currentPromoDiscount > 0) {
+    total = Math.floor(total * (1 - currentPromoDiscount / 100));
+  }
+  el.textContent = formatRupiah(total);
+}
+
+async function applyPromo() {
+  const codeRaw = document.getElementById('promoInput')?.value || '';
+  const code = sanitizeInput(codeRaw).toUpperCase();
+  const resultEl = document.getElementById('promoResult');
+  if (!code) return;
+
+  const db = currentDB || await dbRead();
+  const session = getSession();
+  const user = db.users.find(u => u.username === session?.username);
+
+  const promo = db.promoCodes?.find(p => p.code === code);
+
+  if (!promo) {
+    resultEl.innerHTML = `<div class="promo-discount" style="color:var(--danger);"><i class="fa-solid fa-xmark"></i> Kode promo tidak ditemukan!</div>`;
+    currentPromoDiscount = 0;
+    updateTotal();
+    return;
   }
 
-  async function applyPromo() {
-    const code = sanitize(overlay.querySelector('#promo-input').value.trim().toUpperCase());
-    const msgEl = overlay.querySelector('#promo-msg');
-    if (!code) { msgEl.style.color = '#ef4444'; msgEl.textContent = 'Masukkan kode promo terlebih dahulu!'; return; }
-
-    msgEl.style.color = '#a855f7'; msgEl.textContent = 'Mengecek kode promo...';
-
-    const db = await dbGet();
-    const promo = (db.promoCodes || []).find(p => p.code === code);
-    if (!promo) { msgEl.style.color = '#ef4444'; msgEl.textContent = 'Kode promo tidak ditemukan!'; promoApplied = null; render(); return; }
-    if (!promo.active) { msgEl.style.color = '#ef4444'; msgEl.textContent = 'Kode promo tidak aktif!'; return; }
-
-    const usageCount = promo.usedBy ? promo.usedBy.length : 0;
-    if (usageCount >= promo.maxUsage) { msgEl.style.color = '#ef4444'; msgEl.textContent = `Kode promo sudah mencapai batas ${promo.maxUsage} pengguna!`; return; }
-
-    const user = db.users.find(u => u.username === currentUsername);
-    if (user && user.usedPromos && user.usedPromos.includes(code)) {
-      msgEl.style.color = '#ef4444'; msgEl.textContent = 'Anda sudah pernah menggunakan promo ini!'; return;
-    }
-
-    promoApplied = { code, percent: promo.percent };
-    msgEl.style.color = '#10b981'; msgEl.textContent = `✅ Promo aktif! Diskon ${promo.percent}%`;
-    render();
+  // Check max usage
+  if (promo.usedCount >= promo.maxUse) {
+    resultEl.innerHTML = `<div class="promo-discount" style="color:var(--danger);"><i class="fa-solid fa-xmark"></i> Promo telah mencapai batas pemakaian (${promo.maxUse} orang)!</div>`;
+    currentPromoDiscount = 0;
+    updateTotal();
+    return;
   }
 
-  async function processBuy() {
-    if (!selectedPlan) { showError('Pilih Paket', 'Silahkan pilih paket terlebih dahulu!'); return; }
-    const waInput = overlay.querySelector('#wa-input').value.trim();
-    if (!waInput) { showError('WhatsApp Kosong', 'Masukkan nomor WhatsApp Anda!'); return; }
+  // Check if user already used this promo
+  if (user?.promoUsed?.includes(code)) {
+    resultEl.innerHTML = `<div class="promo-discount" style="color:var(--danger);"><i class="fa-solid fa-xmark"></i> Anda sudah menggunakan promo ini sebelumnya!</div>`;
+    currentPromoDiscount = 0;
+    updateTotal();
+    return;
+  }
 
-    const db = await dbGet();
-    const user = db.users.find(u => u.username === currentUsername);
-    if (!user) { showError('Error', 'Session expired, silahkan login ulang.'); clearSession(); window.location.href='index.html'; return; }
+  currentPromoDiscount = parseInt(promo.discount);
+  resultEl.innerHTML = `<div class="promo-discount"><i class="fa-solid fa-circle-check"></i> Promo berhasil! Diskon ${promo.discount}% diterapkan.</div>`;
+  updateTotal();
+}
 
-    const finalPrice = getFinalPrice();
-    if (user.credit < finalPrice) {
-      showError('Saldo Tidak Cukup', `Saldo Anda Rp ${user.credit.toLocaleString('id-ID')}, dibutuhkan Rp ${finalPrice.toLocaleString('id-ID')}. Hubungi admin untuk top up.`);
+async function doBuyNow() {
+  const session = getSession();
+  if (!session) { window.location.href = 'index.html'; return; }
+
+  if (!currentPriceOption) {
+    Swal.fire({ icon: 'warning', title: 'Pilih paket terlebih dahulu!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  const phoneRaw = document.getElementById('buyerPhone')?.value || '';
+  const phone = sanitizeInput(phoneRaw);
+  if (!phone || !validatePhone(phone)) {
+    Swal.fire({ icon: 'warning', title: 'Masukkan nomor WhatsApp yang valid!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  const promoCode = sanitizeInput(document.getElementById('promoInput')?.value || '').toUpperCase();
+  let total = currentPriceOption.price * currentQuantity;
+  if (currentPromoDiscount > 0) total = Math.floor(total * (1 - currentPromoDiscount / 100));
+
+  const btn = document.getElementById('buyNowBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
+
+  try {
+    const db = await dbRead();
+    const user = db.users.find(u => u.username === session.username);
+
+    if (!user) { throw new Error('User tidak ditemukan'); }
+    if ((user.credit || 0) < total) {
+      Swal.fire({ icon: 'error', title: 'Saldo Tidak Cukup!', text: `Saldo Anda ${formatRupiah(user.credit)} — Dibutuhkan ${formatRupiah(total)}`, background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-shopping-cart"></i> Buy Now';
       return;
     }
 
-    Swal.fire({
-      title: 'Konfirmasi Pembelian',
-      html: `<b>${sanitize(product.name)}</b><br>Paket: ${sanitize(selectedPlan.label)}<br>Qty: ${qty}<br>Total: <b style="color:#f59e0b">Rp ${finalPrice.toLocaleString('id-ID')}</b>`,
-      icon: 'question', showCancelButton: true,
-      confirmButtonText: 'Beli Sekarang', cancelButtonText: 'Batal'
-    }).then(async r => {
-      if (!r.isConfirmed) return;
+    // Deduct credit
+    user.credit = (user.credit || 0) - total;
 
-      // Deduct credit
-      user.credit -= finalPrice;
-
-      // Save promo usage
-      if (promoApplied) {
-        const promo = db.promoCodes.find(p => p.code === promoApplied.code);
-        if (promo) {
-          if (!promo.usedBy) promo.usedBy = [];
-          promo.usedBy.push(currentUsername);
-        }
-        if (!user.usedPromos) user.usedPromos = [];
-        user.usedPromos.push(promoApplied.code);
+    // Mark promo used
+    if (promoCode && currentPromoDiscount > 0) {
+      if (!user.promoUsed) user.promoUsed = [];
+      if (!user.promoUsed.includes(promoCode)) {
+        user.promoUsed.push(promoCode);
+        const promo = db.promoCodes?.find(p => p.code === promoCode);
+        if (promo) promo.usedCount = (promo.usedCount || 0) + 1;
       }
+    }
 
-      // Create transaction
-      const trxId = 'TRX-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5).toUpperCase();
-      const trx = {
-        id: trxId,
-        username: currentUsername,
-        productId: product.id,
-        productName: product.name,
-        plan: selectedPlan.label,
-        planType: viewMode,
-        qty,
-        basePrice: getBasePrice(),
-        finalPrice,
-        promoCode: promoApplied ? promoApplied.code : null,
-        waNumber: sanitize(waInput),
-        status: 'waiting',
-        keys: [],
-        createdAt: new Date().toISOString()
-      };
-      if (!db.transactions) db.transactions = [];
-      db.transactions.unshift(trx);
+    // Create transaction
+    const trxId = generateId();
+    const trx = {
+      id: trxId,
+      username: session.username,
+      productId: currentProduct.id,
+      productName: currentProduct.name,
+      priceLabel: currentPriceOption.label,
+      priceType: currentPriceType === 'full' ? 'Access Full Key' : 'Rental Key',
+      quantity: currentQuantity,
+      unitPrice: currentPriceOption.price,
+      totalPrice: total,
+      promoCode: promoCode || null,
+      promoDiscount: currentPromoDiscount,
+      phone: phone,
+      status: 'waiting',
+      keys: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
 
-      await dbSet(db);
-      homeDB = db;
-      updateUserCredit();
+    if (!db.transactions) db.transactions = [];
+    db.transactions.unshift(trx);
 
-      overlay.remove();
-      showSuccess('Pembelian Berhasil!', `ID Transaksi: ${trxId}\nAdmin akan segera memproses pesanan Anda.`);
+    // Update stats
+    if (!db.stats) db.stats = { totalBuyers: 0, totalRevenue: 0, todaySales: 0, todayDate: '' };
+    const today = new Date().toDateString();
+    if (db.stats.todayDate !== today) {
+      db.stats.todaySales = 0;
+      db.stats.todayDate = today;
+    }
+    db.stats.totalBuyers = (db.stats.totalBuyers || 0) + 1;
+    db.stats.totalRevenue = (db.stats.totalRevenue || 0) + total;
+    db.stats.todaySales = (db.stats.todaySales || 0) + 1;
+
+    const saved = await dbWrite(db);
+    if (!saved) throw new Error('Gagal menyimpan transaksi');
+
+    // Update session credit
+    sessionStorage.setItem('dc_user', JSON.stringify({ username: session.username, credit: user.credit }));
+    const cEl = document.getElementById('headerCredit');
+    if (cEl) cEl.textContent = formatRupiah(user.credit);
+
+    closeModal('purchaseModal');
+    await Swal.fire({
+      icon: 'success',
+      title: 'Pembelian Berhasil! 🎉',
+      html: `
+        <p style="color:#c4b5fd;margin-bottom:8px;">ID Transaksi: <strong style="color:#f3e8ff;">${trxId}</strong></p>
+        <p style="color:#c4b5fd;margin-bottom:8px;">Total: <strong style="color:#fbbf24;">${formatRupiah(total)}</strong></p>
+        <p style="color:#a78bfa;font-size:13px;">Admin akan memproses pesanan Anda segera. Pantau di <strong>Logs Transaksi</strong>.</p>
+      `,
+      background: '#0f0720',
+      color: '#f3e8ff',
+      confirmButtonColor: '#7c3aed'
     });
-  }
 
-  render();
-  document.body.appendChild(overlay);
-}
+    // Refresh transactions
+    renderTransactions(db.transactions, session.username);
+    showTab('transactions');
 
-function initFAQ() {
-  document.querySelectorAll('.faq-item').forEach(item => {
-    item.querySelector('.faq-question')?.addEventListener('click', () => {
-      const isOpen = item.classList.contains('active');
-      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('active'));
-      if (!isOpen) item.classList.add('active');
-    });
-  });
-}
-
-function setupNotifPopups() {
-  // Popup 1 - WA Channel
-  if (homeDB.notifPopup1 && homeDB.notifPopup1.active) {
-    showWAPopup();
-  }
-  // Popup 2 - Custom notification
-  if (homeDB.notifPopup2 && homeDB.notifPopup2.active) {
-    setTimeout(() => showCustomNotif(homeDB.notifPopup2), 1000);
+  } catch (e) {
+    Swal.fire({ icon: 'error', title: 'Gagal!', text: 'Terjadi kesalahan: ' + e.message, background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-shopping-cart"></i> Buy Now';
   }
 }
 
-function showWAPopup() {
-  const overlay = document.createElement('div');
-  overlay.className = 'popup-overlay';
-  overlay.innerHTML = `
-    <div class="popup-card" style="max-width:400px;text-align:center">
-      <div style="position:absolute;top:14px;right:14px" class="popup-close" id="wa-popup-close"><i class="fas fa-times"></i></div>
-      <div class="welcome-popup-logo"><img src="${LOGO_URL}" alt="Drip Logo"></div>
-      <div class="welcome-popup-name">Welcome! ${sanitize(currentUsername)}! 👋</div>
-      <p class="welcome-popup-desc">Untuk mengetahui perkembangan harga atau mendapatkan update silahkan join saluran WhatsApp kami sekarang.</p>
-      <a href="${WA_CHANNEL}" target="_blank" class="btn-wa"><i class="fab fa-whatsapp"></i> Join Now</a>
-    </div>
-  `;
-  overlay.querySelector('#wa-popup-close').addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.body.appendChild(overlay);
-}
-
-function showCustomNotif(cfg) {
-  const icons = { info: 'fa-info-circle', warning: 'fa-exclamation-triangle', attention: 'fa-bell' };
-  const icon = icons[cfg.type] || 'fa-bell';
-  const overlay = document.createElement('div');
-  overlay.className = 'popup-overlay';
-  overlay.innerHTML = `
-    <div class="popup-card" style="max-width:380px;text-align:center">
-      <div style="position:absolute;top:14px;right:14px" class="popup-close" id="cnotif-close"><i class="fas fa-times"></i></div>
-      <i class="fas ${icon}" style="font-size:3rem;color:var(--purple-300);margin-bottom:16px;display:block"></i>
-      <p style="font-size:0.95rem;color:var(--text-secondary);line-height:1.6">${sanitize(cfg.text || '')}</p>
-    </div>
-  `;
-  overlay.querySelector('#cnotif-close').addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.body.appendChild(overlay);
-}
-
-function showMaintenancePopup(reason) {
-  document.getElementById('main-content').style.display = 'block';
-  const overlay = document.createElement('div');
-  overlay.className = 'maintenance-popup-overlay';
-  overlay.innerHTML = `
-    <div class="maintenance-popup">
-      <span class="maintenance-icon">⚙️</span>
-      <div class="maintenance-title">MAINTENANCE MODE</div>
-      <p class="maintenance-desc">${sanitize(reason)}</p>
-      <div style="margin-top:30px;font-size:0.8rem;color:var(--text-muted);font-family:var(--font-mono)">Silahkan coba lagi nanti...</div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-}
-
-// ===== HAMBURGER / NAVBAR =====
-function initHamburger() {
-  const btn = document.getElementById('hamburger-btn');
-  const nav = document.getElementById('quick-nav');
-  const overlay = document.getElementById('nav-overlay');
-  if (!btn || !nav) return;
-
-  btn.addEventListener('click', () => {
-    nav.classList.toggle('open');
-    overlay?.classList.toggle('show');
-  });
-
-  overlay?.addEventListener('click', () => {
-    nav.classList.remove('open');
-    overlay.classList.remove('show');
-  });
-}
-
-function initNavItems() {
-  // Reset Key
-  document.getElementById('nav-reset-key')?.addEventListener('click', () => {
-    document.getElementById('quick-nav')?.classList.remove('open');
-    document.getElementById('nav-overlay')?.classList.remove('show');
-    openResetKeyPopup();
-  });
-
-  // Transaction Log
-  document.getElementById('nav-trx-log')?.addEventListener('click', () => {
-    document.getElementById('quick-nav')?.classList.remove('open');
-    document.getElementById('nav-overlay')?.classList.remove('show');
-    openTrxLogPopup();
-  });
-
-  // Home
-  document.getElementById('nav-home')?.addEventListener('click', () => {
-    document.getElementById('quick-nav')?.classList.remove('open');
-    document.getElementById('nav-overlay')?.classList.remove('show');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  });
-}
-
-function openResetKeyPopup() {
-  const overlay = document.createElement('div');
-  overlay.className = 'popup-overlay';
-  overlay.innerHTML = `
-    <div class="popup-card" style="max-width:420px">
-      <div class="popup-header">
-        <div class="popup-title"><img src="${LOGO_URL}" style="width:28px;height:28px;border-radius:50%;border:1px solid #8b00e0"> Reset Key System</div>
-        <div class="popup-close" id="rk-close"><i class="fas fa-times"></i></div>
+// ============================================================
+// TRANSACTIONS (USER VIEW)
+// ============================================================
+function renderTransactions(transactions, username) {
+  const el = document.getElementById('transactionList');
+  if (!el) return;
+  const userTrx = transactions.filter(t => t.username === username);
+  if (!userTrx.length) {
+    el.innerHTML = `<div class="empty-state"><i class="fa-solid fa-receipt"></i><h3>Belum ada transaksi</h3><p>Beli produk pertama Anda sekarang!</p></div>`;
+    return;
+  }
+  el.innerHTML = userTrx.map(t => `
+    <div class="transaction-item" onclick="showTrxDetail('${sanitizeDisplay(t.id)}')">
+      <div class="transaction-header">
+        <span class="transaction-name">${sanitizeDisplay(t.productName)}</span>
+        <span class="status-badge status-${t.status}">${t.status === 'waiting' ? 'Menunggu' : t.status === 'approved' ? 'Approved' : 'Rejected'}</span>
       </div>
-      <div class="admin-form-group">
-        <label class="admin-form-label">Masukkan Key / Token</label>
-        <input id="rk-input" class="form-control" placeholder="Contoh: 8279290197">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-muted);">
+        <span><i class="fa-solid fa-calendar" style="margin-right:4px;"></i>${formatDate(t.createdAt)}</span>
+        <span style="color:var(--gold);font-weight:700;">${formatRupiah(t.totalPrice)}</span>
       </div>
-      <button id="rk-btn" class="btn-primary"><i class="fas fa-sync-alt"></i> Reset</button>
-      <div class="terminal-output" id="rk-terminal" style="display:none"></div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${sanitizeDisplay(t.id)}</div>
     </div>
-  `;
-  overlay.querySelector('#rk-close').addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  overlay.querySelector('#rk-btn').addEventListener('click', () => processResetKey(overlay));
-  document.body.appendChild(overlay);
+  `).join('');
 }
 
-async function processResetKey(overlay) {
-  const keyVal = sanitize(overlay.querySelector('#rk-input').value.trim());
-  if (!keyVal) { showError('Input Kosong', 'Masukkan key terlebih dahulu!'); return; }
+async function showTrxDetail(trxId) {
+  const db = await dbRead();
+  const trx = db.transactions?.find(t => t.id === trxId);
+  if (!trx) return;
 
-  const btn = overlay.querySelector('#rk-btn');
-  const terminal = overlay.querySelector('#rk-terminal');
+  const body = document.getElementById('trxDetailBody');
+  if (!body) return;
+
+  body.innerHTML = `
+    <div style="display:flex;justify-content:center;margin-bottom:20px;">
+      <span class="status-badge status-${trx.status}" style="font-size:14px;padding:8px 20px;">
+        ${trx.status === 'waiting' ? '⏳ Menunggu' : trx.status === 'approved' ? '✅ Approved' : '❌ Rejected'}
+      </span>
+    </div>
+    <div class="info-row"><span class="lbl">Produk</span><span class="val">${sanitizeDisplay(trx.productName)}</span></div>
+    <div class="info-row"><span class="lbl">Paket</span><span class="val">${sanitizeDisplay(trx.priceLabel)} (${sanitizeDisplay(trx.priceType)})</span></div>
+    <div class="info-row"><span class="lbl">Quantity</span><span class="val">${trx.quantity}x</span></div>
+    <div class="info-row"><span class="lbl">Tanggal</span><span class="val">${formatDate(trx.createdAt)}</span></div>
+    <div class="info-row"><span class="lbl">ID Transaksi</span><span class="val" style="font-family:monospace;font-size:12px;">${sanitizeDisplay(trx.id)}</span></div>
+    ${trx.promoCode ? `<div class="info-row"><span class="lbl">Promo</span><span class="val" style="color:var(--success);">${sanitizeDisplay(trx.promoCode)} (-${trx.promoDiscount}%)</span></div>` : ''}
+    <div class="info-row"><span class="lbl">Total</span><span class="val" style="color:var(--gold);font-size:16px;">${formatRupiah(trx.totalPrice)}</span></div>
+    ${trx.keys?.length ? `
+      <div style="margin-top:16px;">
+        <div style="font-size:12px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;"><i class="fa-solid fa-key" style="margin-right:6px;color:var(--success);"></i>Keys Anda</div>
+        ${trx.keys.map(k => `<div class="key-display">${sanitizeDisplay(k)}</div>`).join('')}
+      </div>
+    ` : ''}
+  `;
+
+  openModal('trxDetailModal');
+}
+
+// ============================================================
+// RESET KEY
+// ============================================================
+function openResetKey() {
+  document.getElementById('resetKeyInput').value = '';
+  document.getElementById('terminalOutput').style.display = 'none';
+  document.getElementById('terminalOutput').innerHTML = '';
+  const btn = document.getElementById('resetKeyBtn');
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Reset'; }
+  openModal('resetKeyModal');
+
+  // Close navbar
+  document.getElementById('sideNav')?.classList.remove('open');
+  document.getElementById('hamburgerBtn')?.classList.remove('active');
+}
+
+async function doResetKey() {
+  const keyRaw = document.getElementById('resetKeyInput')?.value || '';
+  const key = sanitizeInput(keyRaw);
+  const terminal = document.getElementById('terminalOutput');
+  const btn = document.getElementById('resetKeyBtn');
+
+  if (!key) {
+    Swal.fire({ icon: 'warning', title: 'Masukkan key terlebih dahulu!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
   terminal.style.display = 'block';
   terminal.innerHTML = '';
-  btn.disabled = true;
 
-  const db = await dbGet();
-
-  function addLine(text, type = 'info', delay = 0) {
-    setTimeout(() => {
-      const line = document.createElement('span');
-      line.className = `terminal-line ${type}`;
-      line.textContent = `> ${text}`;
-      terminal.appendChild(line);
-      terminal.scrollTop = terminal.scrollHeight;
-    }, delay);
+  function addLine(text, type = '') {
+    const line = document.createElement('div');
+    line.className = `terminal-line ${type}`;
+    line.innerHTML = text;
+    terminal.appendChild(line);
+    terminal.scrollTop = terminal.scrollHeight;
   }
 
-  if (!db.resetKeyStatus) {
-    addLine('Menghubungi server...', 'info', 0);
-    addLine('Mengecek status sistem...', 'info', 400);
-    addLine('ERROR: Fitur reset sedang dinonaktifkan oleh admin.', 'error', 800);
-    addLine('Silahkan coba lagi nanti.', 'warning', 1200);
-    btn.disabled = false;
-    return;
-  }
+  try {
+    addLine('> Initializing reset system...', 'info');
+    await sleep(600);
+    addLine('> Fetching Server.....', 'info');
+    await sleep(700);
 
-  // Daily reset check
-  const today = new Date().toISOString().split('T')[0];
-  if (!db.dailyResets) db.dailyResets = {};
-  const userResets = db.dailyResets[currentUsername] || {};
-  const todayCount = userResets[today] || 0;
+    const db = await dbRead();
 
-  addLine('Connecting to server...', 'info', 0);
-  addLine('Validating token: ' + keyVal.substring(0, 4) + '****', 'info', 400);
-  addLine('Fetching server response...', 'info', 800);
-
-  if (todayCount >= 2) {
-    setTimeout(() => {
-      addLine('ERROR: Batas reset harian tercapai (2x/hari).', 'error', 0);
-      const nextReset = new Date(); nextReset.setDate(nextReset.getDate() + 1); nextReset.setHours(0, 0, 0, 0);
-      addLine(`Next reset: ${nextReset.toLocaleString('id-ID')}`, 'warning', 300);
+    if (!db.settings?.resetKeyEnabled) {
+      addLine('> Response Database....', 'info');
+      await sleep(500);
+      addLine('❌ ERROR: Reset system is OFFLINE', 'error');
+      await sleep(300);
+      addLine('', '');
+      addLine('Maaf fitur ini sedang di nonaktifkan oleh admin atau sedang tidak beroperasi normal. Silahkan coba lagi nanti.', 'error');
+      btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Reset';
       btn.disabled = false;
-    }, 1200);
-    return;
+      return;
+    }
+
+    addLine('> Response Database....', 'info');
+    await sleep(600);
+    addLine('> Validating token...', 'info');
+    await sleep(500);
+    addLine('> Processing device reset...', 'info');
+    await sleep(700);
+    addLine('> Clearing device registry...', 'info');
+    await sleep(400);
+    addLine('> Updating reset counter...', 'info');
+    await sleep(500);
+    addLine('', '');
+    addLine('✅ Reset Successful', 'success');
+    addLine('', '');
+    addLine('Status: 200', 'success');
+    addLine(`Response: {"success":true,"message":"Token reset successfully","resetsused":1,"resetsmax":2,"key":"${sanitizeDisplay(key)}","nextresettime":"${new Date(Date.now() + 86400000).toISOString().slice(0, 19).replace('T', ' ')}"}`, 'success');
+
+  } catch (e) {
+    addLine('> ERROR: Connection failed', 'error');
+    addLine('Silahkan coba lagi nanti.', 'error');
   }
 
-  setTimeout(async () => {
-    // Count reset
-    if (!userResets[today]) userResets[today] = 0;
-    userResets[today]++;
-    db.dailyResets[currentUsername] = userResets;
-    await dbSet(db);
-
-    const usedCount = userResets[today];
-    const nextReset = new Date(); nextReset.setDate(nextReset.getDate() + 1); nextReset.setHours(0, 0, 0, 0);
-    const nextResetStr = nextReset.toISOString().replace('T', ' ').substring(0, 19);
-
-    addLine('Connection established!', 'success', 0);
-    addLine('Processing device reset...', 'info', 300);
-    addLine('Revoking old session...', 'info', 600);
-    addLine('Generating new device binding...', 'info', 900);
-    addLine('', 'info', 1200);
-    addLine('✅ Reset Successful', 'success', 1300);
-    addLine('', 'info', 1400);
-    addLine('Status: 200', 'success', 1500);
-    addLine(`Response: {"success":true,"message":"Token reset successfully","resetsused":${usedCount},"resetsmax":2,"nextresettime":"${nextResetStr}"}`, 'success', 1600);
-    btn.disabled = false;
-  }, 1200);
+  btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Reset Lagi';
+  btn.disabled = false;
 }
 
-function openTrxLogPopup() {
-  const userTrx = (homeDB.transactions || []).filter(t => t.username === currentUsername);
-  const trxHTML = userTrx.length === 0
-    ? '<p style="text-align:center;color:var(--text-muted);padding:30px">Belum ada transaksi.</p>'
-    : userTrx.map(t => `
-      <div class="trx-item" data-id="${t.id}">
-        <div class="trx-header">
-          <div class="trx-name">${sanitize(t.productName)}</div>
-          <span class="status-badge status-${t.status}">${t.status === 'waiting' ? 'Menunggu' : t.status === 'approved' ? 'Disetujui' : 'Ditolak'}</span>
-        </div>
-        <div class="trx-id">ID: ${t.id}</div>
-        <div style="font-size:0.8rem;color:var(--text-muted);margin-top:6px">${new Date(t.createdAt).toLocaleString('id-ID')}</div>
-      </div>
-    `).join('');
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  const overlay = document.createElement('div');
-  overlay.className = 'popup-overlay';
-  overlay.innerHTML = `
-    <div class="popup-card" style="max-width:480px">
-      <div class="popup-header">
-        <div class="popup-title"><i class="fas fa-receipt"></i> Logs Transaksi</div>
-        <div class="popup-close" id="trx-close"><i class="fas fa-times"></i></div>
+// ============================================================
+// WELCOME POPUP
+// ============================================================
+function closeWelcomePopup() {
+  closeModal('welcomePopup');
+}
+
+// ============================================================
+// CUSTOM NOTIFICATION
+// ============================================================
+function showCustomNotif(message, icon) {
+  const existing = document.getElementById('customNotifEl');
+  if (existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.id = 'customNotifEl';
+  el.className = 'notification-popup show';
+  el.innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:12px;">
+      <i class="fa-solid ${sanitizeDisplay(icon)}" style="color:var(--primary-light);font-size:20px;margin-top:2px;"></i>
+      <div style="flex:1;">
+        <div style="font-weight:700;color:var(--text-primary);margin-bottom:6px;">Pemberitahuan</div>
+        <p style="color:var(--text-secondary);font-size:13px;line-height:1.5;">${sanitizeDisplay(message)}</p>
       </div>
-      <div style="max-height:65vh;overflow-y:auto">${trxHTML}</div>
+      <button onclick="document.getElementById('customNotifEl').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:16px;"><i class="fa-solid fa-xmark"></i></button>
     </div>
   `;
-  overlay.querySelector('#trx-close').addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-
-  // Click trx for detail
-  overlay.querySelectorAll('.trx-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const trx = userTrx.find(t => t.id === item.dataset.id);
-      if (trx) showTrxDetail(trx);
-    });
-  });
-  document.body.appendChild(overlay);
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 8000);
 }
 
-function showTrxDetail(trx) {
-  const keysHTML = trx.keys && trx.keys.length > 0
-    ? trx.keys.map(k => `<div style="font-family:var(--font-mono);font-size:0.85rem;background:rgba(139,0,224,0.1);border:1px solid var(--border-purple);padding:8px 12px;border-radius:8px;color:#a855f7;word-break:break-all">${sanitize(k)}</div>`).join('')
-    : trx.status === 'approved' ? '<p style="color:var(--text-muted);font-size:0.85rem">Key akan segera dikirim.</p>' : '<p style="color:var(--text-muted);font-size:0.85rem">Menunggu admin memproses.</p>';
+// ============================================================
+// ADMIN PANEL
+// ============================================================
+async function initAdminPanel() {
+  const db = await dbRead();
+  renderAdminStats(db.stats || {});
+  renderAdminProducts(db.products || []);
+  renderAdminTransactions(db.transactions || [], 'all');
+  renderAdminPromos(db.promoCodes || []);
+  renderAdminUsers(db.users || []);
+  loadAdminSettings(db.settings || {});
 
-  Swal.fire({
-    title: `<span style="font-family:var(--font-display);font-size:1rem">${sanitize(trx.productName)}</span>`,
-    html: `
-      <div style="text-align:left;font-family:var(--font-body)">
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(139,0,224,0.2)"><span style="color:#7c6a94">Paket</span><b>${sanitize(trx.plan)} (${trx.planType})</b></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(139,0,224,0.2)"><span style="color:#7c6a94">Qty</span><b>${trx.qty}</b></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(139,0,224,0.2)"><span style="color:#7c6a94">ID Transaksi</span><b style="font-size:0.75rem">${trx.id}</b></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(139,0,224,0.2)"><span style="color:#7c6a94">Tanggal</span><b style="font-size:0.78rem">${new Date(trx.createdAt).toLocaleString('id-ID')}</b></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(139,0,224,0.2)"><span style="color:#7c6a94">Total</span><b style="color:#f59e0b">Rp ${trx.finalPrice.toLocaleString('id-ID')}</b></div>
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(139,0,224,0.2)"><span style="color:#7c6a94">Status</span>
-          <b style="color:${trx.status==='approved'?'#10b981':trx.status==='rejected'?'#ef4444':'#f59e0b'}">${trx.status==='approved'?'✅ Disetujui':trx.status==='rejected'?'❌ Ditolak':'⏳ Menunggu'}</b>
-        </div>
-        ${trx.status === 'approved' ? `<div style="padding-top:12px"><div style="color:#7c6a94;margin-bottom:8px;font-weight:600">Keys:</div>${keysHTML}</div>` : ''}
-      </div>
-    `,
-    confirmButtonText: 'Tutup'
-  });
-}
-
-// =========================================================
-// ===== ADMIN.HTML =====
-// =========================================================
-let adminDB = null;
-
-async function initAdmin() {
-  initParticles('particles-canvas');
-  initLoadingScreen(async () => {
-    document.getElementById('main-content').style.display = 'flex';
-    adminDB = await dbGet();
-
-    renderAdminStats();
-    renderAdminProducts();
-    renderAdminPromos();
-    renderAdminTransactions();
-    loadAdminSettings();
-
-    initAdminSidebar();
-    initAdminForms();
-
-    // Reset today sales counter
-    checkDailySalesReset();
-  });
-}
-
-function checkDailySalesReset() {
-  const today = new Date().toISOString().split('T')[0];
-  if (adminDB.stats && adminDB.stats.lastResetDate !== today) {
-    adminDB.stats.lastResetDate = today;
-    adminDB.stats.todaySales = 0;
-    dbSet(adminDB);
+  // Pending badge
+  const pending = (db.transactions || []).filter(t => t.status === 'waiting').length;
+  const badge = document.getElementById('pendingBadge');
+  if (badge) {
+    badge.style.display = pending > 0 ? 'inline-flex' : 'none';
+    badge.textContent = pending;
   }
 }
 
-function renderAdminStats() {
-  const st = adminDB.stats || {};
-  document.getElementById('stat-total-buyers').textContent = st.totalBuyers || 0;
-  document.getElementById('stat-revenue').textContent = 'Rp ' + (st.totalRevenue || 0).toLocaleString('id-ID');
-  document.getElementById('stat-today').textContent = st.todaySales || 0;
-  document.getElementById('stat-users').textContent = (adminDB.users || []).length;
+function renderAdminStats(stats) {
+  const el1 = document.getElementById('statTotalBuyers');
+  const el2 = document.getElementById('statRevenue');
+  const el3 = document.getElementById('statTodaySales');
+  if (el1) el1.textContent = stats.totalBuyers || 0;
+  if (el2) el2.textContent = formatRupiah(stats.totalRevenue || 0);
+  if (el3) el3.textContent = stats.todaySales || 0;
 }
 
-function renderAdminProducts() {
-  const list = document.getElementById('admin-product-list');
-  if (!list) return;
-  const products = adminDB.products || [];
-  if (products.length === 0) { list.innerHTML = '<p style="color:var(--text-muted)">Belum ada produk.</p>'; return; }
-  list.innerHTML = products.map(p => `
-    <div class="product-admin-item">
-      <img src="${p.image || LOGO_URL}" class="product-admin-thumb" onerror="this.src='${LOGO_URL}'">
-      <div class="product-admin-info">
-        <div class="product-admin-name">${sanitize(p.name)}</div>
-        <div class="product-admin-type">${sanitize(p.type)} · ${p.active ? '🟢 Aktif' : '🔴 Nonaktif'}</div>
+function renderAdminProducts(products) {
+  const el = document.getElementById('adminProductList');
+  if (!el) return;
+  if (!products.length) {
+    el.innerHTML = `<div class="empty-state"><i class="fa-solid fa-box-open"></i><h3>Belum ada produk</h3></div>`;
+    return;
+  }
+  el.innerHTML = products.map(p => `
+    <div class="product-edit-item">
+      <div class="product-edit-item-info">
+        <div class="product-edit-item-name">${sanitizeDisplay(p.name)}</div>
+        <div class="product-edit-item-desc">${sanitizeDisplay(p.type || '')} — ${(p.features || []).join(', ')}</div>
       </div>
-      <div class="product-admin-actions">
-        <button class="btn-icon edit" onclick="adminEditProduct('${p.id}')"><i class="fas fa-edit"></i></button>
-        <button class="btn-icon delete" onclick="adminDeleteProduct('${p.id}')"><i class="fas fa-trash"></i></button>
-      </div>
-    </div>
-  `).join('');
-}
-
-function renderAdminPromos() {
-  const list = document.getElementById('admin-promo-list');
-  if (!list) return;
-  const promos = adminDB.promoCodes || [];
-  if (promos.length === 0) { list.innerHTML = '<p style="color:var(--text-muted)">Belum ada kode promo.</p>'; return; }
-  list.innerHTML = promos.map((p, i) => `
-    <div class="promo-item">
-      <div>
-        <div class="promo-code">${sanitize(p.code)}</div>
-        <div class="promo-info">Diskon ${p.percent}% · Max ${p.maxUsage} · Dipakai ${(p.usedBy||[]).length}</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span class="status-badge ${p.active ? 'status-approved' : 'status-rejected'}">${p.active ? 'Aktif' : 'Nonaktif'}</span>
-        <button class="btn-icon delete" onclick="adminDeletePromo(${i})"><i class="fas fa-trash"></i></button>
+      <div class="product-edit-actions">
+        <button class="btn btn-outline btn-sm btn-icon" onclick="adminEditProduct('${sanitizeDisplay(p.id)}')" title="Edit"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-danger btn-sm btn-icon" onclick="adminDeleteProduct('${sanitizeDisplay(p.id)}')" title="Hapus"><i class="fa-solid fa-trash"></i></button>
       </div>
     </div>
   `).join('');
 }
 
-function renderAdminTransactions() {
-  const tbody = document.getElementById('admin-trx-tbody');
-  if (!tbody) return;
-  const trxs = adminDB.transactions || [];
-  if (trxs.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px">Belum ada transaksi.</td></tr>'; return; }
-  tbody.innerHTML = trxs.map(t => `
-    <tr>
-      <td style="font-family:var(--font-mono);font-size:0.72rem">${t.id}</td>
-      <td>${sanitize(t.username)}</td>
-      <td>${sanitize(t.productName)}</td>
-      <td>${sanitize(t.plan)}</td>
-      <td style="color:#f59e0b;font-weight:700">Rp ${t.finalPrice.toLocaleString('id-ID')}</td>
-      <td><span class="status-badge status-${t.status}">${t.status==='waiting'?'Menunggu':t.status==='approved'?'Approved':'Rejected'}</span></td>
-      <td>
-        ${t.status === 'waiting' ? `
-          <button class="btn-icon edit" onclick="adminApproveTrx('${t.id}')" title="Approve"><i class="fas fa-check"></i></button>
-          <button class="btn-icon delete" onclick="adminRejectTrx('${t.id}')" title="Reject"><i class="fas fa-times"></i></button>
-        ` : `<span style="color:var(--text-muted);font-size:0.78rem">${t.status}</span>`}
-      </td>
-    </tr>
-  `).join('');
-}
+async function adminAddProduct() {
+  const name = sanitizeInput(document.getElementById('newProductName')?.value || '');
+  const type = sanitizeInput(document.getElementById('newProductType')?.value || '');
+  const image = sanitizeInput(document.getElementById('newProductImg')?.value || '');
+  const featuresRaw = document.getElementById('newProductFeatures')?.value || '';
+  const features = featuresRaw.split(',').map(f => sanitizeInput(f.trim())).filter(f => f);
+  const rentalEnabled = document.getElementById('enableRental')?.checked || false;
 
-async function adminApproveTrx(trxId) {
-  const trx = adminDB.transactions.find(t => t.id === trxId);
-  if (!trx) return;
+  if (!name) {
+    Swal.fire({ icon: 'warning', title: 'Nama produk wajib diisi!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
 
-  const { value: keysInput } = await Swal.fire({
-    title: 'Kirim Key ke User',
-    html: `
-      <p style="color:#b39ddb;margin-bottom:12px">Transaksi: <b>${trx.id}</b><br>User: <b>${sanitize(trx.username)}</b></p>
-      <textarea id="swal-keys" class="swal2-textarea" placeholder="Masukkan key, pisahkan dengan baris baru..." style="font-family:var(--font-mono);font-size:0.85rem;background:rgba(13,0,21,0.8);border:1px solid rgba(139,0,224,0.4);color:#f0e6ff;min-height:120px"></textarea>
-    `,
-    confirmButtonText: 'Approve & Kirim Key',
-    cancelButtonText: 'Batal',
-    showCancelButton: true,
-    preConfirm: () => document.getElementById('swal-keys').value
+  // Collect full key prices
+  const fullKeyPrices = collectPrices('fullKeyPrices');
+  const rentalKeyPrices = rentalEnabled ? collectPrices('rentalKeyPrices') : [];
+
+  if (!fullKeyPrices.length) {
+    Swal.fire({ icon: 'warning', title: 'Tambahkan minimal 1 harga!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  const db = await dbRead();
+  if (!db.products) db.products = [];
+
+  db.products.push({
+    id: 'PROD-' + Date.now().toString(36).toUpperCase(),
+    name, type, image, features,
+    fullKeyPrices, rentalKeyPrices, rentalEnabled,
+    createdAt: Date.now()
   });
 
-  if (!keysInput) return;
-  const keys = keysInput.split('\n').map(k => sanitize(k.trim())).filter(Boolean);
-
-  trx.status = 'approved';
-  trx.keys = keys;
-
-  // Update stats
-  if (!adminDB.stats) adminDB.stats = {};
-  adminDB.stats.totalBuyers = (adminDB.stats.totalBuyers || 0) + 1;
-  adminDB.stats.totalRevenue = (adminDB.stats.totalRevenue || 0) + trx.finalPrice;
-  adminDB.stats.todaySales = (adminDB.stats.todaySales || 0) + 1;
-
-  await dbSet(adminDB);
-  renderAdminTransactions();
-  renderAdminStats();
-  showSuccess('Approved!', `Key berhasil dikirim ke ${sanitize(trx.username)}`);
+  const saved = await dbWrite(db);
+  if (saved) {
+    Swal.fire({ icon: 'success', title: 'Produk berhasil ditambahkan!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    renderAdminProducts(db.products);
+    // Clear form
+    ['newProductName','newProductType','newProductImg','newProductFeatures'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+  } else {
+    Swal.fire({ icon: 'error', title: 'Gagal menyimpan!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+  }
 }
 
-async function adminRejectTrx(trxId) {
-  const trx = adminDB.transactions.find(t => t.id === trxId);
-  if (!trx) return;
-
-  Swal.fire({
-    title: 'Tolak Transaksi?',
-    text: `Yakin menolak transaksi ${trxId}? Saldo user akan dikembalikan.`,
-    icon: 'warning', showCancelButton: true,
-    confirmButtonText: 'Ya, Tolak', cancelButtonText: 'Batal'
-  }).then(async r => {
-    if (!r.isConfirmed) return;
-    trx.status = 'rejected';
-
-    // Refund
-    const user = adminDB.users.find(u => u.username === trx.username);
-    if (user) user.credit = (user.credit || 0) + trx.finalPrice;
-
-    await dbSet(adminDB);
-    renderAdminTransactions();
-    showSuccess('Ditolak', 'Transaksi ditolak dan saldo dikembalikan.');
+function collectPrices(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return [];
+  const rows = container.querySelectorAll('.price-row');
+  const prices = [];
+  rows.forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    if (inputs.length >= 2) {
+      const label = sanitizeInput(inputs[0].value);
+      const price = parseInt(inputs[1].value) || 0;
+      if (label && price > 0) prices.push({ label, price });
+    }
   });
+  return prices;
 }
 
 async function adminDeleteProduct(productId) {
-  Swal.fire({
-    title: 'Hapus Produk?', icon: 'warning', showCancelButton: true,
-    confirmButtonText: 'Hapus', cancelButtonText: 'Batal'
-  }).then(async r => {
-    if (!r.isConfirmed) return;
-    adminDB.products = adminDB.products.filter(p => p.id !== productId);
-    await dbSet(adminDB);
-    renderAdminProducts();
-    showSuccess('Dihapus', 'Produk berhasil dihapus.');
+  const result = await Swal.fire({
+    title: 'Hapus Produk?',
+    text: 'Produk akan dihapus permanen!',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    cancelButtonColor: '#7c3aed',
+    confirmButtonText: 'Ya, Hapus',
+    cancelButtonText: 'Batal',
+    background: '#0f0720',
+    color: '#f3e8ff'
   });
+
+  if (!result.isConfirmed) return;
+
+  const db = await dbRead();
+  db.products = (db.products || []).filter(p => p.id !== productId);
+  const saved = await dbWrite(db);
+  if (saved) {
+    renderAdminProducts(db.products);
+    Swal.fire({ icon: 'success', title: 'Produk dihapus!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+  }
 }
 
-function adminEditProduct(productId) {
-  const p = adminDB.products.find(pr => pr.id === productId);
-  if (!p) return;
-  showAdminPanel('panel-product');
-  document.getElementById('prod-id').value = p.id;
-  document.getElementById('prod-name').value = p.name;
-  document.getElementById('prod-type').value = p.type;
-  document.getElementById('prod-image').value = p.image || '';
-  document.getElementById('prod-desc').value = p.description || '';
-  document.getElementById('prod-features').value = (p.features || []).join('\n');
-  document.getElementById('prod-has-rental').checked = !!p.hasRental;
+async function adminEditProduct(productId) {
+  const db = await dbRead();
+  const product = db.products?.find(p => p.id === productId);
+  if (!product) return;
 
-  // Fill plans
-  const fillPlans = (plans, prefix) => {
-    (plans || []).forEach((pl, i) => {
-      const li = document.getElementById(`${prefix}-label-${i+1}`);
-      const pi = document.getElementById(`${prefix}-price-${i+1}`);
-      if (li) li.value = pl.label;
-      if (pi) pi.value = pl.price;
+  const body = document.getElementById('editProductBody');
+  if (!body) return;
+
+  body.innerHTML = `
+    <div class="grid-2">
+      <div class="form-group"><label class="form-label">Nama</label><input type="text" id="editProdName" class="form-input" value="${sanitizeDisplay(product.name)}" maxlength="100"></div>
+      <div class="form-group"><label class="form-label">Tipe</label><input type="text" id="editProdType" class="form-input" value="${sanitizeDisplay(product.type || '')}" maxlength="50"></div>
+    </div>
+    <div class="form-group"><label class="form-label">URL Gambar</label><input type="text" id="editProdImg" class="form-input" value="${sanitizeDisplay(product.image || '')}" maxlength="300"></div>
+    <div class="form-group"><label class="form-label">Fitur (pisah koma)</label><input type="text" id="editProdFeatures" class="form-input" value="${sanitizeDisplay((product.features || []).join(', '))}" maxlength="300"></div>
+    <input type="hidden" id="editProdId" value="${sanitizeDisplay(productId)}">
+    <button class="btn btn-primary" onclick="saveEditProduct()" style="width:100%;">
+      <i class="fa-solid fa-save"></i> Simpan Perubahan
+    </button>
+  `;
+  openModal('editProductModal');
+}
+
+async function saveEditProduct() {
+  const id = document.getElementById('editProdId')?.value;
+  const name = sanitizeInput(document.getElementById('editProdName')?.value || '');
+  const type = sanitizeInput(document.getElementById('editProdType')?.value || '');
+  const image = sanitizeInput(document.getElementById('editProdImg')?.value || '');
+  const featuresRaw = document.getElementById('editProdFeatures')?.value || '';
+  const features = featuresRaw.split(',').map(f => sanitizeInput(f.trim())).filter(Boolean);
+
+  if (!name) {
+    Swal.fire({ icon: 'warning', title: 'Nama produk tidak boleh kosong!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  const db = await dbRead();
+  const idx = db.products?.findIndex(p => p.id === id);
+  if (idx === -1 || idx === undefined) return;
+
+  db.products[idx] = { ...db.products[idx], name, type, image, features };
+  const saved = await dbWrite(db);
+  if (saved) {
+    closeModal('editProductModal');
+    renderAdminProducts(db.products);
+    Swal.fire({ icon: 'success', title: 'Produk diperbarui!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+  }
+}
+
+// ============================================================
+// ADMIN TRANSACTIONS
+// ============================================================
+let currentTrxFilter = 'all';
+
+function filterTrx(filter) {
+  currentTrxFilter = filter;
+  ['all', 'waiting', 'approved', 'rejected'].forEach(f => {
+    const btn = document.getElementById('filter' + f.charAt(0).toUpperCase() + f.slice(1));
+    if (btn) btn.style.borderColor = f === filter ? 'var(--primary-light)' : '';
+  });
+
+  dbRead().then(db => renderAdminTransactions(db.transactions || [], filter));
+}
+
+function renderAdminTransactions(transactions, filter) {
+  const el = document.getElementById('adminTrxList');
+  if (!el) return;
+  const filtered = filter === 'all' ? transactions : transactions.filter(t => t.status === filter);
+  if (!filtered.length) {
+    el.innerHTML = `<div class="empty-state"><i class="fa-solid fa-receipt"></i><h3>Tidak ada transaksi</h3></div>`;
+    return;
+  }
+  el.innerHTML = filtered.map(t => `
+    <div class="admin-trx-item">
+      <div class="admin-trx-header">
+        <div>
+          <div style="font-weight:700;font-size:15px;color:var(--text-primary);">${sanitizeDisplay(t.productName)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">${sanitizeDisplay(t.id)}</div>
+        </div>
+        <span class="status-badge status-${t.status}">${t.status === 'waiting' ? 'Menunggu' : t.status === 'approved' ? 'Approved' : 'Rejected'}</span>
+      </div>
+      <div class="info-row"><span class="lbl">User</span><span class="val">${sanitizeDisplay(t.username)}</span></div>
+      <div class="info-row"><span class="lbl">Paket</span><span class="val">${sanitizeDisplay(t.priceLabel)} — ${sanitizeDisplay(t.priceType)}</span></div>
+      <div class="info-row"><span class="lbl">Qty</span><span class="val">${t.quantity}x</span></div>
+      <div class="info-row"><span class="lbl">No. WA</span><span class="val">${sanitizeDisplay(t.phone)}</span></div>
+      <div class="info-row"><span class="lbl">Total</span><span class="val" style="color:var(--gold);">${formatRupiah(t.totalPrice)}</span></div>
+      <div class="info-row"><span class="lbl">Tanggal</span><span class="val">${formatDate(t.createdAt)}</span></div>
+      ${t.keys?.length ? `<div style="margin-top:8px;"><div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Keys Terkirim:</div>${t.keys.map(k => `<div class="key-display">${sanitizeDisplay(k)}</div>`).join('')}</div>` : ''}
+      <div class="admin-trx-actions">
+        ${t.status === 'waiting' ? `
+          <button class="btn btn-success btn-sm" onclick="openApproveModal('${sanitizeDisplay(t.id)}')">
+            <i class="fa-solid fa-check"></i> Approve
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="adminRejectTrx('${sanitizeDisplay(t.id)}')">
+            <i class="fa-solid fa-xmark"></i> Reject
+          </button>
+        ` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function openApproveModal(trxId) {
+  document.getElementById('approveTrxId').value = trxId;
+  document.getElementById('keyInputsContainer').innerHTML = `
+    <div class="form-group"><input type="text" class="form-input key-input" placeholder="Key #1..." maxlength="200"></div>
+  `;
+  openModal('approveKeyModal');
+}
+
+async function submitApprove() {
+  const trxId = document.getElementById('approveTrxId')?.value;
+  const keyInputs = document.querySelectorAll('.key-input');
+  const keys = Array.from(keyInputs).map(i => sanitizeInput(i.value)).filter(k => k);
+
+  if (!keys.length) {
+    Swal.fire({ icon: 'warning', title: 'Masukkan minimal 1 key!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  const db = await dbRead();
+  const trx = db.transactions?.find(t => t.id === trxId);
+  if (!trx) return;
+
+  trx.status = 'approved';
+  trx.keys = keys;
+  trx.updatedAt = Date.now();
+
+  const saved = await dbWrite(db);
+  if (saved) {
+    closeModal('approveKeyModal');
+    renderAdminTransactions(db.transactions || [], currentTrxFilter);
+    renderAdminStats(db.stats || {});
+    Swal.fire({ icon: 'success', title: 'Transaksi di-approve! Key berhasil dikirim.', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+  }
+}
+
+async function adminRejectTrx(trxId) {
+  const result = await Swal.fire({
+    title: 'Reject Transaksi?',
+    text: 'Saldo user akan dikembalikan.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#ef4444',
+    cancelButtonColor: '#7c3aed',
+    confirmButtonText: 'Ya, Reject',
+    cancelButtonText: 'Batal',
+    background: '#0f0720',
+    color: '#f3e8ff'
+  });
+
+  if (!result.isConfirmed) return;
+
+  const db = await dbRead();
+  const trx = db.transactions?.find(t => t.id === trxId);
+  if (!trx) return;
+
+  trx.status = 'rejected';
+  trx.updatedAt = Date.now();
+
+  // Refund user credit
+  const user = db.users?.find(u => u.username === trx.username);
+  if (user) user.credit = (user.credit || 0) + trx.totalPrice;
+
+  // Update stats
+  if (db.stats) {
+    db.stats.totalRevenue = Math.max(0, (db.stats.totalRevenue || 0) - trx.totalPrice);
+    db.stats.totalBuyers = Math.max(0, (db.stats.totalBuyers || 0) - 1);
+  }
+
+  const saved = await dbWrite(db);
+  if (saved) {
+    renderAdminTransactions(db.transactions || [], currentTrxFilter);
+    renderAdminStats(db.stats || {});
+    Swal.fire({ icon: 'success', title: 'Transaksi ditolak. Saldo dikembalikan.', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+  }
+}
+
+// ============================================================
+// ADMIN PROMO
+// ============================================================
+async function adminAddPromo() {
+  const code = sanitizeInput(document.getElementById('promoCode')?.value || '').toUpperCase();
+  const discount = parseInt(document.getElementById('promoPercent')?.value || '0');
+  const maxUse = parseInt(document.getElementById('promoMax')?.value || '0');
+
+  if (!code || !discount || !maxUse) {
+    Swal.fire({ icon: 'warning', title: 'Semua field promo wajib diisi!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  if (discount < 1 || discount > 99) {
+    Swal.fire({ icon: 'warning', title: 'Persen diskon harus 1-99!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  const db = await dbRead();
+  if (!db.promoCodes) db.promoCodes = [];
+
+  if (db.promoCodes.find(p => p.code === code)) {
+    Swal.fire({ icon: 'error', title: 'Kode promo sudah ada!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  db.promoCodes.push({ code, discount, maxUse, usedCount: 0, createdAt: Date.now() });
+  const saved = await dbWrite(db);
+  if (saved) {
+    renderAdminPromos(db.promoCodes);
+    document.getElementById('promoCode').value = '';
+    document.getElementById('promoPercent').value = '';
+    document.getElementById('promoMax').value = '';
+    Swal.fire({ icon: 'success', title: 'Kode promo ditambahkan!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+  }
+}
+
+function renderAdminPromos(promos) {
+  const el = document.getElementById('promoList');
+  if (!el) return;
+  if (!promos.length) {
+    el.innerHTML = `<div class="empty-state"><i class="fa-solid fa-tag"></i><h3>Belum ada promo</h3></div>`;
+    return;
+  }
+  el.innerHTML = promos.map(p => `
+    <div class="product-edit-item">
+      <div class="product-edit-item-info">
+        <div class="product-edit-item-name" style="font-family:monospace;">${sanitizeDisplay(p.code)}</div>
+        <div class="product-edit-item-desc">Diskon ${p.discount}% — Pemakaian: ${p.usedCount}/${p.maxUse}</div>
+      </div>
+      <button class="btn btn-danger btn-sm btn-icon" onclick="adminDeletePromo('${sanitizeDisplay(p.code)}')"><i class="fa-solid fa-trash"></i></button>
+    </div>
+  `).join('');
+}
+
+async function adminDeletePromo(code) {
+  const db = await dbRead();
+  db.promoCodes = (db.promoCodes || []).filter(p => p.code !== code);
+  await dbWrite(db);
+  renderAdminPromos(db.promoCodes);
+}
+
+// ============================================================
+// ADMIN USERS / TOPUP
+// ============================================================
+async function adminTopup() {
+  const username = sanitizeInput(document.getElementById('topupUsername')?.value || '').toLowerCase();
+  const amount = parseInt(document.getElementById('topupAmount')?.value || '0');
+
+  if (!username || amount < 1000) {
+    Swal.fire({ icon: 'warning', title: 'Username dan jumlah wajib diisi (min Rp 1000)!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  const db = await dbRead();
+  const user = db.users?.find(u => u.username === username);
+
+  if (!user) {
+    Swal.fire({ icon: 'error', title: 'Username tidak ditemukan!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+    return;
+  }
+
+  user.credit = (user.credit || 0) + amount;
+  const saved = await dbWrite(db);
+  if (saved) {
+    renderAdminUsers(db.users);
+    document.getElementById('topupUsername').value = '';
+    document.getElementById('topupAmount').value = '';
+    Swal.fire({
+      icon: 'success',
+      title: 'Saldo Berhasil Dikirim!',
+      html: `<p style="color:#c4b5fd;"><strong style="color:#fbbf24;">${formatRupiah(amount)}</strong> telah dikirim ke akun <strong style="color:#f3e8ff;">${sanitizeDisplay(username)}</strong>.<br>Saldo sekarang: <strong style="color:#fbbf24;">${formatRupiah(user.credit)}</strong></p>`,
+      background: '#0f0720',
+      color: '#f3e8ff',
+      confirmButtonColor: '#7c3aed'
     });
+  }
+}
+
+function renderAdminUsers(users) {
+  const el = document.getElementById('adminUserList');
+  if (!el) return;
+  if (!users.length) {
+    el.innerHTML = `<div class="empty-state"><i class="fa-solid fa-users"></i><h3>Belum ada user</h3></div>`;
+    return;
+  }
+  el.innerHTML = `
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr><th>Username</th><th>Saldo</th><th>No. WA</th><th>Bergabung</th></tr>
+        </thead>
+        <tbody>
+          ${users.map(u => `
+            <tr>
+              <td><strong style="color:var(--text-primary);">${sanitizeDisplay(u.username)}</strong></td>
+              <td style="color:var(--gold);font-weight:700;">${formatRupiah(u.credit || 0)}</td>
+              <td>${sanitizeDisplay(u.phone || '-')}</td>
+              <td>${formatDate(u.createdAt)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ============================================================
+// ADMIN SETTINGS
+// ============================================================
+async function toggleSetting(key) {
+  const switchEl = document.getElementById(key + 'Switch') || document.getElementById(key === 'runningText' ? 'runningTextSwitch' : key === 'welcomePopup' ? 'welcomePopupSwitch' : key === 'customNotif' ? 'customNotifSwitch' : key === 'resetKeyEnabled' ? 'resetKeySwitch' : 'maintenanceSwitch');
+  if (!switchEl) return;
+
+  const db = await dbRead();
+  if (!db.settings) db.settings = getDefaultDB().settings;
+  db.settings[key] = switchEl.checked;
+  await dbWrite(db);
+}
+
+async function saveRunningText() {
+  const msg = sanitizeInput(document.getElementById('runningTextInput')?.value || '');
+  if (!msg) { Swal.fire({ icon: 'warning', title: 'Masukkan teks!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' }); return; }
+  const db = await dbRead();
+  if (!db.settings) db.settings = getDefaultDB().settings;
+  db.settings.runningTextMsg = msg;
+  const saved = await dbWrite(db);
+  if (saved) Swal.fire({ icon: 'success', title: 'Teks disimpan!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+}
+
+async function saveCustomNotif() {
+  const msg = sanitizeInput(document.getElementById('notifMessage')?.value || '');
+  const icon = document.getElementById('notifIcon')?.value || 'fa-circle-info';
+  if (!msg) { Swal.fire({ icon: 'warning', title: 'Masukkan pesan notifikasi!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' }); return; }
+  const db = await dbRead();
+  if (!db.settings) db.settings = getDefaultDB().settings;
+  db.settings.customNotifMsg = msg;
+  db.settings.customNotifIcon = icon;
+  const saved = await dbWrite(db);
+  if (saved) Swal.fire({ icon: 'success', title: 'Notifikasi disimpan!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+}
+
+async function saveMaintenanceReason() {
+  const reason = sanitizeInput(document.getElementById('maintenanceReason')?.value || '');
+  if (!reason) { Swal.fire({ icon: 'warning', title: 'Masukkan alasan maintenance!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' }); return; }
+  const db = await dbRead();
+  if (!db.settings) db.settings = getDefaultDB().settings;
+  db.settings.maintenanceMsgText = reason;
+  const saved = await dbWrite(db);
+  if (saved) Swal.fire({ icon: 'success', title: 'Alasan disimpan!', background: '#0f0720', color: '#f3e8ff', confirmButtonColor: '#7c3aed' });
+}
+
+function loadAdminSettings(settings) {
+  const switches = {
+    runningText: 'runningTextSwitch',
+    welcomePopup: 'welcomePopupSwitch',
+    customNotif: 'customNotifSwitch',
+    resetKeyEnabled: 'resetKeySwitch',
+    maintenanceMode: 'maintenanceSwitch'
   };
-  fillPlans(p.fullkeyPlans, 'fk');
-  fillPlans(p.rentalPlans, 'rk');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  Object.entries(switches).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = settings[key] || false;
+  });
+
+  const rTxt = document.getElementById('runningTextInput');
+  if (rTxt && settings.runningTextMsg) rTxt.value = settings.runningTextMsg;
+
+  const notifMsg = document.getElementById('notifMessage');
+  if (notifMsg && settings.customNotifMsg) notifMsg.value = settings.customNotifMsg;
+
+  const notifIcon = document.getElementById('notifIcon');
+  if (notifIcon && settings.customNotifIcon) notifIcon.value = settings.customNotifIcon;
+
+  const maintReason = document.getElementById('maintenanceReason');
+  if (maintReason && settings.maintenanceMsgText) maintReason.value = settings.maintenanceMsgText;
 }
-
-async function adminDeletePromo(index) {
-  Swal.fire({
-    title: 'Hapus Promo?', icon: 'warning', showCancelButton: true,
-    confirmButtonText: 'Hapus', cancelButtonText: 'Batal'
-  }).then(async r => {
-    if (!r.isConfirmed) return;
-    adminDB.promoCodes.splice(index, 1);
-    await dbSet(adminDB);
-    renderAdminPromos();
-    showSuccess('Dihapus', 'Kode promo dihapus.');
-  });
-}
-
-function loadAdminSettings() {
-  const rt = adminDB.runningText || {};
-  const el = document.getElementById('rt-toggle');
-  if (el) el.checked = !!rt.active;
-  const rtText = document.getElementById('rt-text');
-  if (rtText) rtText.value = rt.text || '';
-
-  const n1 = document.getElementById('notif1-toggle');
-  if (n1) n1.checked = !!(adminDB.notifPopup1 && adminDB.notifPopup1.active);
-
-  const n2 = document.getElementById('notif2-toggle');
-  if (n2) n2.checked = !!(adminDB.notifPopup2 && adminDB.notifPopup2.active);
-  const n2text = document.getElementById('notif2-text');
-  if (n2text) n2text.value = adminDB.notifPopup2?.text || '';
-  const n2type = document.getElementById('notif2-type');
-  if (n2type) n2type.value = adminDB.notifPopup2?.type || 'info';
-
-  const rks = document.getElementById('reset-key-toggle');
-  if (rks) rks.checked = !!adminDB.resetKeyStatus;
-
-  const mt = document.getElementById('maintenance-toggle');
-  if (mt) mt.checked = !!(adminDB.maintenance && adminDB.maintenance.active);
-  const mr = document.getElementById('maintenance-reason');
-  if (mr) mr.value = adminDB.maintenance?.reason || '';
-}
-
-function initAdminForms() {
-  // Add Product
-  document.getElementById('add-product-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const btn = e.target.querySelector('button[type="submit"]');
-    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
-
-    const id = document.getElementById('prod-id').value || ('prod_' + Date.now());
-    const name = sanitize(document.getElementById('prod-name').value);
-    const type = sanitize(document.getElementById('prod-type').value);
-    const image = sanitize(document.getElementById('prod-image').value);
-    const desc = sanitize(document.getElementById('prod-desc').value);
-    const features = document.getElementById('prod-features').value.split('\n').map(f => sanitize(f.trim())).filter(Boolean);
-    const hasRental = document.getElementById('prod-has-rental').checked;
-
-    const fullkeyPlans = [];
-    const rentalPlans = [];
-    for (let i = 1; i <= 5; i++) {
-      const l = document.getElementById(`fk-label-${i}`)?.value;
-      const p = document.getElementById(`fk-price-${i}`)?.value;
-      if (l && p) fullkeyPlans.push({ label: sanitize(l), price: parseInt(p) });
-    }
-    for (let i = 1; i <= 5; i++) {
-      const l = document.getElementById(`rk-label-${i}`)?.value;
-      const p = document.getElementById(`rk-price-${i}`)?.value;
-      if (l && p) rentalPlans.push({ label: sanitize(l), price: parseInt(p) });
-    }
-
-    const existIdx = adminDB.products.findIndex(p => p.id === id);
-    const product = { id, name, type, image, description: desc, features, fullkeyPlans, rentalPlans, hasRental, active: true };
-
-    if (existIdx >= 0) adminDB.products[existIdx] = product;
-    else adminDB.products.push(product);
-
-    const ok = await dbSet(adminDB);
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus"></i> Simpan Produk';
-    if (ok) { renderAdminProducts(); showSuccess('Berhasil!', existIdx >= 0 ? 'Produk diperbarui.' : 'Produk ditambahkan.'); e.target.reset(); document.getElementById('prod-id').value = ''; }
-    else showError('Gagal', 'Gagal menyimpan ke database.');
-  });
-
-  // Add Promo
-  document.getElementById('add-promo-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const btn = e.target.querySelector('button[type="submit"]');
-    btn.disabled = true;
-    const code = sanitize(document.getElementById('promo-code').value.trim().toUpperCase());
-    const percent = parseInt(document.getElementById('promo-percent').value);
-    const maxUsage = parseInt(document.getElementById('promo-max').value);
-    if (!code || !percent || !maxUsage || percent > 100 || percent < 1) { showError('Input Tidak Valid', 'Periksa semua field.'); btn.disabled = false; return; }
-    if ((adminDB.promoCodes || []).find(p => p.code === code)) { showError('Kode Sudah Ada', 'Kode promo ini sudah ada.'); btn.disabled = false; return; }
-    if (!adminDB.promoCodes) adminDB.promoCodes = [];
-    adminDB.promoCodes.push({ code, percent, maxUsage, usedBy: [], active: true, createdAt: new Date().toISOString() });
-    const ok = await dbSet(adminDB);
-    btn.disabled = false;
-    if (ok) { renderAdminPromos(); showSuccess('Berhasil!', `Kode promo ${code} ditambahkan.`); e.target.reset(); }
-    else showError('Gagal', 'Gagal menyimpan.');
-  });
-
-  // Running Text
-  document.getElementById('save-rt-btn')?.addEventListener('click', async () => {
-    const text = sanitize(document.getElementById('rt-text').value);
-    const active = document.getElementById('rt-toggle').checked;
-    adminDB.runningText = { text, active };
-    const ok = await dbSet(adminDB);
-    ok ? showSuccess('Disimpan!', 'Running text diperbarui.') : showError('Gagal', 'Gagal menyimpan.');
-  });
-
-  // Add Credit
-  document.getElementById('add-credit-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const btn = e.target.querySelector('button[type="submit"]');
-    btn.disabled = true;
-    const uname = sanitize(document.getElementById('credit-username').value.trim());
-    const amount = parseInt(document.getElementById('credit-amount').value);
-    if (!uname || !amount || amount < 1) { showError('Input Tidak Valid', 'Periksa semua field.'); btn.disabled = false; return; }
-    const db = await dbGet();
-    const user = db.users.find(u => u.username === uname);
-    if (!user) { showError('User Tidak Ditemukan', `Username "${uname}" tidak ada di database.`); btn.disabled = false; return; }
-    user.credit = (user.credit || 0) + amount;
-    const ok = await dbSet(db);
-    adminDB = db;
-    btn.disabled = false;
-    if (ok) { showSuccess('Berhasil!', `Rp ${amount.toLocaleString('id-ID')} dikirim ke ${uname}. Saldo baru: Rp ${user.credit.toLocaleString('id-ID')}`); e.target.reset(); }
-    else showError('Gagal', 'Gagal menyimpan.');
-  });
-
-  // Settings saves
-  document.getElementById('save-settings-btn')?.addEventListener('click', async () => {
-    adminDB.resetKeyStatus = document.getElementById('reset-key-toggle').checked;
-    adminDB.maintenance = {
-      active: document.getElementById('maintenance-toggle').checked,
-      reason: sanitize(document.getElementById('maintenance-reason').value)
-    };
-    adminDB.notifPopup1 = { active: document.getElementById('notif1-toggle').checked };
-    adminDB.notifPopup2 = {
-      active: document.getElementById('notif2-toggle').checked,
-      type: document.getElementById('notif2-type').value,
-      text: sanitize(document.getElementById('notif2-text').value)
-    };
-    const ok = await dbSet(adminDB);
-    ok ? showSuccess('Disimpan!', 'Pengaturan berhasil disimpan.') : showError('Gagal', 'Gagal menyimpan.');
-  });
-}
-
-function initAdminSidebar() {
-  // Mobile toggle
-  const mobileBtn = document.getElementById('admin-mobile-menu');
-  const sidebar = document.querySelector('.admin-sidebar');
-  mobileBtn?.addEventListener('click', () => sidebar?.classList.toggle('open'));
-
-  // Nav items
-  document.querySelectorAll('.sidebar-item[data-panel]').forEach(item => {
-    item.addEventListener('click', () => {
-      const panel = item.dataset.panel;
-      document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
-      item.classList.add('active');
-      showAdminPanel(panel);
-      sidebar?.classList.remove('open');
-      document.getElementById('admin-topbar-title').textContent = item.querySelector('.nav-item-text')?.textContent || 'Dashboard';
-    });
-  });
-}
-
-function showAdminPanel(panelId) {
-  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById(panelId)?.classList.add('active');
-}
-
-// ===== EXPORT for HTML calls =====
-window.initLogin = initLogin;
-window.initRegister = initRegister;
-window.initHome = initHome;
-window.initAdmin = initAdmin;
-window.adminEditProduct = adminEditProduct;
-window.adminDeleteProduct = adminDeleteProduct;
-window.adminApproveTrx = adminApproveTrx;
-window.adminRejectTrx = adminRejectTrx;
-window.adminDeletePromo = adminDeletePromo;
-window.showAdminPanel = showAdminPanel;

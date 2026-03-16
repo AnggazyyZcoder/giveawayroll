@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Drip Client - Login</title>
+<title>Drip Client - Register</title>
 <link rel="stylesheet" href="style.css"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 </head>
@@ -22,19 +22,12 @@
     <span class="space"> </span>
     <span>C</span><span>L</span><span>I</span><span>E</span><span>N</span><span>T</span>
   </div>
-  <div class="loading-subtitle">Buy Key System</div>
+  <div class="loading-subtitle">Create Account</div>
   <div class="loading-bar-container">
     <div class="loading-bar"></div>
   </div>
 </div>
 
-<!-- WELCOME ANIMATION OVERLAY -->
-<div id="welcome-overlay">
-  <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" style="width:80px;height:80px;border-radius:50%;border:3px solid #cc44ff;box-shadow:0 0 30px #aa00ff;"/>
-  <div class="welcome-text" id="welcome-msg">Welcome!</div>
-</div>
-
-<!-- MAIN AUTH CONTAINER -->
 <div class="main-wrapper" id="auth-main" style="display:none;">
   <div class="auth-container">
     <div class="auth-card">
@@ -44,40 +37,50 @@
         </div>
         <div>
           <div class="auth-title"><span>Drip Client</span></div>
-          <div style="text-align:center;font-size:13px;color:var(--text-muted);letter-spacing:2px;margin-top:4px;">LOGIN TO DASHBOARD</div>
+          <div style="text-align:center;font-size:13px;color:var(--text-muted);letter-spacing:2px;margin-top:4px;">CREATE ACCOUNT</div>
         </div>
       </div>
 
       <div class="form-group">
         <label class="form-label"><i class="fas fa-user" style="color:var(--purple-neon);margin-right:6px;"></i>Username</label>
         <div class="input-wrapper">
-          <input id="login-user" class="form-input" type="text" placeholder="Masukkan username" autocomplete="username"/>
+          <input id="reg-user" class="form-input" type="text" placeholder="Buat username unik" autocomplete="username"/>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label"><i class="fas fa-envelope" style="color:var(--purple-neon);margin-right:6px;"></i>Email (Opsional)</label>
+        <div class="input-wrapper">
+          <input id="reg-email" class="form-input" type="email" placeholder="Email kamu (opsional)"/>
         </div>
       </div>
 
       <div class="form-group">
         <label class="form-label"><i class="fas fa-lock" style="color:var(--purple-neon);margin-right:6px;"></i>Password</label>
         <div class="input-wrapper">
-          <input id="login-pass" class="form-input" type="password" placeholder="Masukkan password" autocomplete="current-password"/>
-          <button class="input-icon-btn" type="button" onclick="togglePass('login-pass',this)">
+          <input id="reg-pass" class="form-input" type="password" placeholder="Buat password kuat" autocomplete="new-password"/>
+          <button class="input-icon-btn" type="button" onclick="togglePass('reg-pass',this)">
             <i class="fas fa-eye"></i>
           </button>
         </div>
       </div>
 
-      <div class="auth-extras">
-        <label class="remember-label">
-          <input type="checkbox" id="remember-me"/> Remember Me
-        </label>
-        <a class="auth-link" href="register.html">Daftar</a>
+      <div class="form-group">
+        <label class="form-label"><i class="fas fa-lock" style="color:var(--purple-neon);margin-right:6px;"></i>Konfirmasi Password</label>
+        <div class="input-wrapper">
+          <input id="reg-pass2" class="form-input" type="password" placeholder="Ulangi password" autocomplete="new-password"/>
+          <button class="input-icon-btn" type="button" onclick="togglePass('reg-pass2',this)">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
       </div>
 
-      <button class="btn-primary" id="btn-login" onclick="doLogin()">
-        <i class="fas fa-sign-in-alt" style="margin-right:8px;"></i>LOGIN
+      <button class="btn-primary" id="btn-register" onclick="doRegister()">
+        <i class="fas fa-user-plus" style="margin-right:8px;"></i>DAFTAR SEKARANG
       </button>
 
-      <div class="auth-footer">
-        Tidak punya akun? <a class="auth-link" href="register.html">Daftar Sekarang</a>
+      <div class="auth-footer" style="margin-top:16px;">
+        Sudah punya akun? <a class="auth-link" href="index.html">Login</a>
       </div>
     </div>
   </div>
@@ -87,7 +90,6 @@
 <script>
   initParticles();
   startLoadingScreen('auth-main');
-  checkRemember();
 </script>
 </body>
 </html>

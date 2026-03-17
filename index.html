@@ -3,94 +3,102 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="description" content="Drip Client - Buy Key Platform">
-  <title>Drip Client - Login</title>
+  <title>Drip Client | Login</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="icon" href="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" type="image/jpeg">
 </head>
-<body>
+<body data-page="login">
 
-<!-- Particles Canvas -->
-<canvas id="particles-canvas"></canvas>
+  <!-- Particle Background -->
+  <canvas id="particle-canvas"></canvas>
 
-<!-- Loading Screen -->
-<div id="loading-screen">
-  <div class="loading-particles" id="loadParticles"></div>
-  <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Drip Client Logo" class="loading-logo-img" onerror="this.style.display='none'">
-  <div class="loading-text-container" id="loadingLetters"></div>
-  <p class="loading-subtitle">Buy Key Platform</p>
-  <div class="loading-bar-container">
-    <div class="loading-bar"></div>
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="loading-logo-wrap">
+      <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="loading-logo-img" alt="Drip Client">
+    </div>
+    <div class="loading-title">
+      <span class="letter">D</span>
+      <span class="letter">R</span>
+      <span class="letter">I</span>
+      <span class="letter">P</span>
+      <span class="letter space" style="display:inline-block;width:16px;"></span>
+      <span class="letter">C</span>
+      <span class="letter">L</span>
+      <span class="letter">I</span>
+      <span class="letter">E</span>
+      <span class="letter">N</span>
+      <span class="letter">T</span>
+    </div>
+    <div class="loading-sub">Buy Key Platform</div>
+    <div class="loading-bar-wrap">
+      <div class="loading-bar"></div>
+    </div>
   </div>
-</div>
 
-<!-- Welcome Overlay (after login) -->
-<div id="welcome-overlay">
-  <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" style="width:80px;height:80px;border-radius:50%;border:3px solid #7c3aed;box-shadow:0 0 30px #7c3aed;" onerror="this.style.display='none'">
-  <p class="welcome-text" id="welcomeMsg">Welcome back!</p>
-  <p style="color:var(--text-muted);font-family:'Rajdhani',sans-serif;letter-spacing:2px;font-size:0.9rem;">Mengarahkan ke Dashboard...</p>
-  <div style="width:200px;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;margin-top:10px;">
-    <div style="height:100%;background:linear-gradient(90deg,var(--primary),var(--accent2));animation:loadBar 2.5s ease forwards;border-radius:2px;"></div>
-  </div>
-</div>
-
-<!-- Main Content -->
-<div class="main-wrapper">
-  <div class="auth-wrapper">
+  <!-- Login Content -->
+  <div id="auth-content" class="auth-page hidden" style="display:flex;">
     <div class="auth-card">
-      <div class="auth-logo-container">
-        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Drip Client" class="auth-logo" onerror="this.style.display='none';document.getElementById('fallbackIcon').style.display='flex'">
-        <div id="fallbackIcon" style="display:none;width:80px;height:80px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));border-radius:50%;align-items:center;justify-content:center;margin:0 auto;font-size:2rem;color:white;border:3px solid var(--primary-light);">
-          <i class="fas fa-gem"></i>
-        </div>
-      </div>
-      <h1 class="auth-title"><i class="fas fa-gem" style="font-size:0.85em;"></i> Login To Dashboard</h1>
-      <p class="auth-subtitle">Masuk ke akun Drip Client Anda</p>
-
-      <div class="form-group">
-        <label class="form-label"><i class="fas fa-user" style="margin-right:6px;color:var(--primary);"></i> Username</label>
-        <div class="input-wrapper">
-          <i class="fas fa-user input-icon"></i>
-          <input type="text" class="form-input" id="loginUsername" placeholder="Masukan username..." autocomplete="username" maxlength="30" oninput="this.value=sanitizeInput(this.value)">
+      <div class="auth-logo-wrap">
+        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="auth-logo-img" alt="Logo">
+        <div>
+          <div class="auth-brand">DRIP CLIENT</div>
+          <div class="auth-title">Login To <span>Dashboard</span></div>
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="form-label"><i class="fas fa-lock" style="margin-right:6px;color:var(--primary);"></i> Password</label>
-        <div class="input-wrapper">
-          <i class="fas fa-lock input-icon"></i>
-          <input type="password" class="form-input has-right-icon" id="loginPassword" placeholder="Masukan password..." autocomplete="current-password" maxlength="50">
-          <button type="button" class="toggle-password" onclick="togglePw('loginPassword','eyeLogin')">
-            <i id="eyeLogin" class="fas fa-eye-slash"></i>
-          </button>
+      <form id="login-form" autocomplete="off">
+        <!-- Username -->
+        <div class="form-group">
+          <label class="form-label"><i class="fas fa-user"></i> Username</label>
+          <div class="input-wrap">
+            <input type="text" id="login-username" class="form-input" placeholder="Masukan username..." maxlength="20" autocomplete="off" required>
+          </div>
         </div>
+
+        <!-- Password -->
+        <div class="form-group">
+          <label class="form-label"><i class="fas fa-lock"></i> Password</label>
+          <div class="input-wrap">
+            <input type="password" id="login-password" class="form-input" placeholder="Masukan password..." maxlength="50" autocomplete="new-password" required>
+            <button type="button" class="input-icon" data-toggle-pw="login-password">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Remember Me -->
+        <div class="remember-me">
+          <input type="checkbox" id="remember-me">
+          <label for="remember-me">Remember Me</label>
+        </div>
+
+        <!-- Login Button -->
+        <button type="submit" class="btn-primary" id="login-btn">
+          <i class="fas fa-sign-in-alt"></i> LOGIN
+        </button>
+      </form>
+
+      <div class="auth-footer" style="margin-top:20px;">
+        Tidak punya akun? <a href="register.html">Daftar Sekarang</a>
       </div>
 
-      <div class="remember-row">
-        <label class="checkbox-wrapper">
-          <input type="checkbox" id="rememberMe">
-          <span class="checkbox-label">Remember Me</span>
-        </label>
-        <a href="register.html" class="auth-link">Buat akun baru →</a>
-      </div>
-
-      <button class="btn btn-primary" id="loginBtn" onclick="handleLogin()">
-        <i class="fas fa-sign-in-alt"></i> Login
-      </button>
-
-      <div class="auth-footer">
-        Belum punya akun? <a href="register.html" class="auth-link">Daftar Sekarang</a>
+      <div class="security-badge">
+        <i class="fas fa-shield-alt"></i>
+        <span>Secured · XSS Protected · Encrypted</span>
       </div>
     </div>
   </div>
-</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.10.5/sweetalert2.all.min.js"></script>
-<script src="script.js"></script>
-<script>
-  // Init loading screen
-  initLoadingScreen('login');
-</script>
+  <!-- Notify Container -->
+  <div id="notify-container" class="custom-notify"></div>
+
+  <script src="script.js"></script>
+  <style>
+    .hidden { display: none !important; }
+    #auth-content { opacity: 0; animation: fadeInUp 0.7s 0.2s forwards; }
+  </style>
 </body>
 </html>

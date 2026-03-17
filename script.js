@@ -1,273 +1,214 @@
-// ============================================================
-// DRIP CLIENT - SCRIPT.JS
-// Full functionality: Auth, DB, Dashboard, Admin Panel
-// ============================================================
+/* ============================================
+   DRIP CLIENT - MAIN SCRIPT
+   All Functions & Features
+   ============================================ */
 
-// ============================================================
-// JSONBIN CONFIG - Replace with your own if needed
-// ============================================================
-const JSONBIN_API_KEY = '$2a$10$uzdLhr/GM.l1rf7rJ11x3ey4eWi0Kj7V5eMtEE6o.RfixGw5qAsXG';
-const BIN_IDS = {
-  users:        '69b7e200c3097a1dd52ce8ce',
-  products:     '69b7e222b7ec241ddc723a4f',
-  transactions: '69b7e244c3097a1dd52ce9a0',
-  settings:     '69b7e280aa77b81da9ec1092',
-  promo:        '69b7e261c3097a1dd52ce9fd',
-};
+// ============ JSONBIN CONFIG ============
 const JSONBIN_BASE = 'https://api.jsonbin.io/v3/b';
+const JSONBIN_KEY = '$2a$10$Y.jqtzCgEfTCuODvJNV08ex.6qQW0V5p2WF6UUqlhg.fYT4W.4Gu6';
 
-// Demo mode: use localStorage as fallback if no real JSONBin keys
-const DEMO_MODE = BIN_IDS.users.startsWith('REPLACE');
+// BIN IDs - Create these bins on jsonbin.io
+const BINS = {
+  users: '69b8b5b1aa77b81da9ef4ccf',
+  products: '69b8b5d3aa77b81da9ef4d4b',
+  transactions: '69b8b5e8b7ec241ddc75790a',
+  settings: '69b8b61ab7ec241ddc7579ad',
+  promoCodes: '69b8b638aa77b81da9ef4ec0'
+};
 
-// ============================================================
-// SECURITY HELPERS
-// ============================================================
-function sanitizeInput(val) {
-  return val.replace(/[<>"'`;&|\\\/\x00-\x1f]/g, '').trim();
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'X-Master-Key': JSONBIN_KEY,
+  'X-Bin-Meta': 'false'
+};
+
+// ============ JSONBIN HELPERS ============
+async function readBin(binId) {
+  try {
+    const res = await fetch(`${JSONBIN_BASE}/${binId}/latest`, {
+      method: 'GET',
+      headers: { 'X-Master-Key': JSONBIN_KEY, 'X-Bin-Meta': 'false' }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.error('ReadBin error:', e);
+    return null;
+  }
 }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
+async function writeBin(binId, data) {
+  try {
+    const res = await fetch(`${JSONBIN_BASE}/${binId}`, {
+      method: 'PUT',
+      headers: HEADERS,
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    console.error('WriteBin error:', e);
+    return null;
+  }
+}
+
+// ============ SECURITY HELPERS ============
+function sanitizeInput(str) {
+  if (typeof str !== 'string') return '';
+  return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;');
+    .replace(/'/g, '&#039;')
+    .replace(/\//g, '&#x2F;')
+    .trim();
 }
 
-function hashPassword(pw) {
-  // Simple deterministic hash for demo (in production use bcrypt server-side)
+function validateUsername(username) {
+  return /^[a-zA-Z0-9_]{3,20}$/.test(username);
+}
+
+function validatePassword(password) {
+  return password.length >= 6 && password.length <= 50;
+}
+
+function hashPassword(password) {
+  // Simple hash for demo - in production use bcrypt on server
   let hash = 0;
-  const salted = 'dripClient_salt_' + pw + '_secure';
-  for (let i = 0; i < salted.length; i++) {
-    const char = salted.charCodeAt(i);
+  const salt = 'DRIPCLIENT_SALT_2024';
+  const str = password + salt;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
     hash = hash & hash;
   }
-  return 'hashed_' + Math.abs(hash).toString(36) + '_' + salted.length;
+  return Math.abs(hash).toString(36) + str.length.toString(36);
 }
 
-function generateId(prefix = 'TRX') {
-  return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6).toUpperCase();
+function generateTxId() {
+  return 'TRX-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
-// ============================================================
-// DEMO STORAGE (localStorage fallback)
-// ============================================================
-function demoGet(key) {
-  try { return JSON.parse(localStorage.getItem('dc_' + key)) || null; } catch { return null; }
-}
-function demoSet(key, val) {
-  try { localStorage.setItem('dc_' + key, JSON.stringify(val)); return true; } catch { return false; }
-}
-
-function initDemoData() {
-  if (!demoGet('users')) {
-    demoSet('users', [
-      { username: 'admin', password: hashPassword('admin123'), credit: 999999, isAdmin: true, createdAt: new Date().toISOString() },
-      { username: 'demo', password: hashPassword('demo123'), credit: 50000, isAdmin: false, createdAt: new Date().toISOString() }
-    ]);
-  }
-  if (!demoGet('products')) {
-    demoSet('products', [
-      {
-        id: 'PROD_001', nama: 'DRIP CLIENT - Android Pro',
-        image: 'https://via.placeholder.com/400x200/1a1535/a78bfa?text=DRIP+CLIENT',
-        desc: 'Cheat Android premium dengan fitur lengkap dan aman.',
-        fitur: ['Antiban Advanced', 'Silent Aim', 'No Recoil', 'Wallhack'],
-        hargaFull: [
-          { label: '1 Day', harga: 20000 }, { label: '3 Days', harga: 30000 },
-          { label: '7 Days', harga: 65000 }, { label: '15 Days', harga: 110000 }, { label: '1 Bulan', harga: 230000 }
-        ],
-        hargaRental: [
-          { label: '1 Jam', harga: 5000 }, { label: '2 Jam', harga: 7000 },
-          { label: '10 Jam', harga: 11000 }, { label: '15 Jam', harga: 16000 }, { label: '24 Jam', harga: 25000 }
-        ],
-        rentalEnabled: true, createdAt: new Date().toISOString()
-      }
-    ]);
-  }
-  if (!demoGet('transactions')) demoSet('transactions', []);
-  if (!demoGet('settings')) {
-    demoSet('settings', {
-      runningText: false, runningTextContent: 'KODE PROMO TERBARU : DISKON70%',
-      welcomePopup: true, notif2: false, notif2Icon: 'fas fa-info-circle',
-      notif2Text: '', resetKey: true, maintenance: false, maintenanceReason: 'Website sedang dalam pemeliharaan.',
-      totalPembeli: 0, totalPenghasilan: 0, terjualHariIni: 0, lastReset: new Date().toDateString()
-    });
-  }
-  if (!demoGet('promo')) demoSet('promo', []);
-}
-
-// ============================================================
-// JSONBIN API WRAPPERS
-// ============================================================
-async function jsonbinGet(binId) {
-  if (DEMO_MODE) return demoGet(getBinKey(binId));
-  try {
-    const r = await fetch(`${JSONBIN_BASE}/${binId}/latest`, {
-      headers: { 'X-Master-Key': JSONBIN_API_KEY }
-    });
-    const d = await r.json();
-    return d.record;
-  } catch (e) { console.error('JSONBin GET error', e); return null; }
-}
-
-async function jsonbinSet(binId, data) {
-  if (DEMO_MODE) { demoSet(getBinKey(binId), data); return true; }
-  try {
-    await fetch(`${JSONBIN_BASE}/${binId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_API_KEY },
-      body: JSON.stringify(data)
-    });
-    return true;
-  } catch (e) { console.error('JSONBin SET error', e); return false; }
-}
-
-function getBinKey(binId) {
-  for (const [k, v] of Object.entries(BIN_IDS)) { if (v === binId) return k; }
-  return binId;
-}
-
-// Convenience wrappers
-async function getUsers() { return await jsonbinGet(BIN_IDS.users) || []; }
-async function setUsers(d) { return await jsonbinSet(BIN_IDS.users, d); }
-async function getProducts() { return await jsonbinGet(BIN_IDS.products) || []; }
-async function setProducts(d) { return await jsonbinSet(BIN_IDS.products, d); }
-async function getTransactions() { return await jsonbinGet(BIN_IDS.transactions) || []; }
-async function setTransactions(d) { return await jsonbinSet(BIN_IDS.transactions, d); }
-async function getSettings() { return await jsonbinGet(BIN_IDS.settings) || {}; }
-async function setSettings(d) { return await jsonbinSet(BIN_IDS.settings, d); }
-async function getPromo() { return await jsonbinGet(BIN_IDS.promo) || []; }
-async function setPromo(d) { return await jsonbinSet(BIN_IDS.promo, d); }
-
-// ============================================================
-// SESSION
-// ============================================================
-function getSession() {
-  try { return JSON.parse(sessionStorage.getItem('dc_session')) || null; } catch { return null; }
-}
+// ============ SESSION MANAGEMENT ============
 function setSession(user) {
-  sessionStorage.setItem('dc_session', JSON.stringify(user));
-  // remember me
-  const remCb = document.getElementById('rememberMe');
-  if (remCb && remCb.checked) {
-    try { localStorage.setItem('dc_remember', JSON.stringify(user)); } catch {}
+  const sessionData = {
+    username: user.username,
+    id: user.id,
+    credit: user.credit || 0,
+    timestamp: Date.now()
+  };
+  sessionStorage.setItem('drip_session', JSON.stringify(sessionData));
+  // Also handle remember me
+  if (document.getElementById('remember-me') && document.getElementById('remember-me').checked) {
+    localStorage.setItem('drip_remember', JSON.stringify(sessionData));
   }
 }
-function clearSession() {
-  sessionStorage.removeItem('dc_session');
-  try { localStorage.removeItem('dc_remember'); } catch {}
-}
 
-function checkRememberMe() {
+function getSession() {
+  let session = sessionStorage.getItem('drip_session');
+  if (!session) session = localStorage.getItem('drip_remember');
+  if (!session) return null;
   try {
-    const r = localStorage.getItem('dc_remember');
-    if (r) { const u = JSON.parse(r); sessionStorage.setItem('dc_session', JSON.stringify(u)); return u; }
-  } catch {}
-  return null;
+    const data = JSON.parse(session);
+    // Session expires after 7 days
+    if (Date.now() - data.timestamp > 7 * 24 * 60 * 60 * 1000) {
+      clearSession();
+      return null;
+    }
+    return data;
+  } catch { return null; }
 }
 
-// ============================================================
-// LOADING SCREEN
-// ============================================================
-function initLoadingScreen(pageType) {
-  initDemoData();
-  initParticles();
-  buildLoadingLetters();
-  buildLoadParticles();
+function clearSession() {
+  sessionStorage.removeItem('drip_session');
+  localStorage.removeItem('drip_remember');
+}
+
+function requireAuth() {
+  const session = getSession();
+  if (!session) {
+    window.location.href = 'index.html';
+    return null;
+  }
+  return session;
+}
+
+// ============ NOTIFY SYSTEM ============
+function notify(type, title, msg, duration = 4000) {
+  let container = document.getElementById('notify-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'notify-container';
+    container.className = 'custom-notify';
+    document.body.appendChild(container);
+  }
+
+  const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
+  const item = document.createElement('div');
+  item.className = `notify-item ${type}`;
+  item.innerHTML = `
+    <span class="notify-icon">${icons[type] || 'ℹ️'}</span>
+    <div class="notify-body">
+      <div class="notify-title">${sanitizeInput(title)}</div>
+      <div class="notify-msg">${sanitizeInput(msg)}</div>
+    </div>
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;color:#999;cursor:pointer;font-size:16px;padding:0;margin-left:8px;">✕</button>
+  `;
+  container.appendChild(item);
 
   setTimeout(() => {
-    const ls = document.getElementById('loading-screen');
-    if (ls) {
-      ls.classList.add('hide');
-      setTimeout(() => { ls.style.display = 'none'; }, 800);
-    }
-    // After loading, init page
-    if (pageType === 'home') initHomePage();
-    else if (pageType === 'admin') initAdminPage();
-    else if (pageType === 'login') initLoginPage();
-    else if (pageType === 'register') {}
-  }, 3000);
+    item.classList.add('notify-exit');
+    setTimeout(() => item.remove(), 300);
+  }, duration);
 }
 
-function buildLoadingLetters() {
-  const text = 'DRIPCLIENT';
-  const cont = document.getElementById('loadingLetters');
-  if (!cont) return;
-  text.split('').forEach((l, i) => {
-    const s = document.createElement('span');
-    s.textContent = l === 'C' && i === 4 ? ' ' : l;
-    if (l === ' ') { s.style.width = '12px'; }
-    s.style.animationDelay = (i * 0.12) + 's';
-    cont.appendChild(s);
-  });
-  // Rebuild with space
-  cont.innerHTML = '';
-  ['D','R','I','P',' ','C','L','I','E','N','T'].forEach((l, i) => {
-    if (l === ' ') {
-      const sp = document.createElement('span');
-      sp.style.width = '15px'; sp.style.display = 'inline-block';
-      cont.appendChild(sp); return;
-    }
-    const s = document.createElement('span');
-    s.textContent = l;
-    s.style.animationDelay = (i * 0.1) + 's';
-    cont.appendChild(s);
-  });
+// ============ LOADING SCREEN ============
+function initLoadingScreen(callback, duration = 3000) {
+  const screen = document.getElementById('loading-screen');
+  if (!screen) { if (callback) callback(); return; }
+
+  setTimeout(() => {
+    screen.classList.add('loading-screen-exit');
+    setTimeout(() => {
+      screen.style.display = 'none';
+      if (callback) callback();
+    }, 800);
+  }, duration);
 }
 
-function buildLoadParticles() {
-  const c = document.getElementById('loadParticles');
-  if (!c) return;
-  for (let i = 0; i < 30; i++) {
-    const p = document.createElement('div');
-    p.className = 'load-particle';
-    p.style.left = Math.random() * 100 + '%';
-    p.style.animationDuration = (3 + Math.random() * 5) + 's';
-    p.style.animationDelay = (Math.random() * 5) + 's';
-    p.style.width = p.style.height = (2 + Math.random() * 4) + 'px';
-    p.style.opacity = Math.random() * 0.7;
-    c.appendChild(p);
-  }
-}
-
-// ============================================================
-// PARTICLES CANVAS
-// ============================================================
+// ============ PARTICLE BACKGROUND ============
 function initParticles() {
-  const canvas = document.getElementById('particles-canvas');
+  const canvas = document.getElementById('particle-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  let W = canvas.width = window.innerWidth;
-  let H = canvas.height = window.innerHeight;
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
 
   const particles = [];
-  const count = Math.min(80, Math.floor(W * H / 15000));
+  const count = Math.min(120, Math.floor(window.innerWidth / 12));
 
   for (let i = 0; i < count; i++) {
     particles.push({
-      x: Math.random() * W, y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6,
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
       r: Math.random() * 2.5 + 0.5,
-      alpha: Math.random() * 0.5 + 0.1,
-      color: Math.random() > 0.5 ? '124,58,237' : '167,139,250'
+      dx: (Math.random() - 0.5) * 0.6,
+      dy: (Math.random() - 0.5) * 0.6,
+      alpha: Math.random() * 0.6 + 0.2,
+      hue: Math.floor(Math.random() * 60) + 260 // purple range
     });
   }
 
   function draw() {
-    ctx.clearRect(0, 0, W, H);
-    particles.forEach(p => {
-      p.x += p.vx; p.y += p.vy;
-      if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
-      if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
-      ctx.fill();
-    });
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     // Draw connections
     for (let i = 0; i < particles.length; i++) {
       for (let j = i + 1; j < particles.length; j++) {
@@ -276,7 +217,7 @@ function initParticles() {
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < 120) {
           ctx.beginPath();
-          ctx.strokeStyle = `rgba(124,58,237,${0.15 * (1 - dist / 120)})`;
+          ctx.strokeStyle = `rgba(107, 0, 168, ${(1 - dist / 120) * 0.15})`;
           ctx.lineWidth = 0.5;
           ctx.moveTo(particles[i].x, particles[i].y);
           ctx.lineTo(particles[j].x, particles[j].y);
@@ -284,1375 +225,1371 @@ function initParticles() {
         }
       }
     }
+
+    // Draw particles
+    particles.forEach(p => {
+      ctx.beginPath();
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 3);
+      grad.addColorStop(0, `hsla(${p.hue}, 100%, 70%, ${p.alpha})`);
+      grad.addColorStop(1, `hsla(${p.hue}, 100%, 70%, 0)`);
+      ctx.fillStyle = grad;
+      ctx.arc(p.x, p.y, p.r * 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      p.x += p.dx;
+      p.y += p.dy;
+
+      if (p.x < 0 || p.x > canvas.width) p.dx *= -1;
+      if (p.y < 0 || p.y > canvas.height) p.dy *= -1;
+    });
+
     requestAnimationFrame(draw);
   }
+
   draw();
-  window.addEventListener('resize', () => { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; });
 }
 
-// ============================================================
-// SCROLL FADE-IN
-// ============================================================
-function initScrollAnimations() {
-  const els = document.querySelectorAll('.fade-in-scroll');
-  const obs = new IntersectionObserver(entries => {
-    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } });
-  }, { threshold: 0.1 });
-  els.forEach(el => obs.observe(el));
+// ============ SCROLL ANIMATIONS ============
+function initScrollReveal() {
+  const els = document.querySelectorAll('.scroll-reveal');
+  if (!els.length) return;
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  els.forEach(el => observer.observe(el));
 }
 
-// ============================================================
-// UI HELPERS
-// ============================================================
-function togglePw(inputId, iconId) {
-  const input = document.getElementById(inputId);
-  const icon = document.getElementById(iconId);
-  if (!input || !icon) return;
-  if (input.type === 'password') {
-    input.type = 'text'; icon.className = 'fas fa-eye';
-  } else {
-    input.type = 'password'; icon.className = 'fas fa-eye-slash';
+// ============ HAMBURGER NAVBAR ============
+function initHamburger() {
+  const btn = document.getElementById('hamburger-btn');
+  const nav = document.getElementById('quick-nav');
+  const overlay = document.getElementById('nav-overlay');
+  if (!btn || !nav) return;
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    nav.classList.toggle('open');
+    if (overlay) overlay.classList.toggle('show');
+  });
+
+  if (overlay) {
+    overlay.addEventListener('click', () => {
+      nav.classList.remove('open');
+      overlay.classList.remove('show');
+    });
   }
 }
 
-function openModal(id) {
-  const m = document.getElementById(id);
-  if (m) { m.style.display = 'flex'; setTimeout(() => m.classList.add('show'), 10); }
-}
-
-function closeModal(id) {
-  const m = document.getElementById(id);
-  if (m) { m.classList.remove('show'); setTimeout(() => { m.style.display = 'none'; }, 300); }
-}
-
-function toggleDrawer() {
-  const d = document.getElementById('sideDrawer');
-  const o = document.getElementById('drawerOverlay');
-  if (d && o) { d.classList.toggle('open'); o.classList.toggle('show'); }
-}
-
-function closeDrawer() {
-  const d = document.getElementById('sideDrawer');
-  const o = document.getElementById('drawerOverlay');
-  if (d) d.classList.remove('open');
-  if (o) o.classList.remove('show');
-}
-
-function setLoading(btnId, loading, text = 'Loading...') {
-  const btn = document.getElementById(btnId);
-  if (!btn) return;
-  if (loading) {
-    btn.disabled = true;
-    btn.dataset.origText = btn.innerHTML;
-    btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${escapeHtml(text)}`;
-  } else {
-    btn.disabled = false;
-    btn.innerHTML = btn.dataset.origText || text;
-  }
-}
-
-function formatRupiah(n) {
-  if (!n && n !== 0) return 'Rp 0';
-  return 'Rp ' + Number(n).toLocaleString('id-ID');
-}
-
-function formatDate(d) {
-  if (!d) return '-';
-  return new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-function checkPasswordStrength(pw) {
-  const bar = document.getElementById('pwStrengthBar');
-  const label = document.getElementById('pwStrengthLabel');
-  if (!bar || !label) return;
-  let strength = 0;
-  if (pw.length >= 6) strength++;
-  if (pw.length >= 10) strength++;
-  if (/[A-Z]/.test(pw)) strength++;
-  if (/[0-9]/.test(pw)) strength++;
-  if (/[^A-Za-z0-9]/.test(pw)) strength++;
-  const colors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#10b981'];
-  const labels = ['Sangat Lemah', 'Lemah', 'Sedang', 'Kuat', 'Sangat Kuat'];
-  bar.style.width = (strength * 20) + '%';
-  bar.style.background = colors[strength - 1] || '#ef4444';
-  label.textContent = strength > 0 ? labels[strength - 1] : '';
-  label.style.color = colors[strength - 1] || 'var(--text-muted)';
-}
-
-// ============================================================
-// LOGIN PAGE INIT
-// ============================================================
-function initLoginPage() {
-  // Check if already logged in
-  const sess = getSession() || checkRememberMe();
-  if (sess) { window.location.href = 'home.html'; return; }
-  // Allow enter key
-  ['loginUsername', 'loginPassword'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+// ============ PASSWORD TOGGLE ============
+function initPasswordToggles() {
+  document.querySelectorAll('[data-toggle-pw]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-toggle-pw');
+      const input = document.getElementById(targetId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+      } else {
+        input.type = 'password';
+        btn.innerHTML = '<i class="fas fa-eye"></i>';
+      }
+    });
   });
 }
 
-// ============================================================
-// AUTH: LOGIN
-// ============================================================
-async function handleLogin() {
-  const username = sanitizeInput(document.getElementById('loginUsername')?.value || '');
-  const password = document.getElementById('loginPassword')?.value || '';
+// ============ FAQ ACCORDION ============
+function initFAQ() {
+  document.querySelectorAll('.faq-question').forEach(q => {
+    q.addEventListener('click', () => {
+      const item = q.closest('.faq-item');
+      const isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+      if (!isOpen) item.classList.add('open');
+    });
+  });
+}
+
+// ============ LOGIN PAGE ============
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  const username = sanitizeInput(document.getElementById('login-username').value.trim());
+  const password = document.getElementById('login-password').value;
 
   if (!username || !password) {
-    showAlert('warning', 'Oops!', 'Username dan password wajib diisi!'); return;
-  }
-  if (username.length < 3) {
-    showAlert('warning', 'Username Terlalu Pendek', 'Min. 3 karakter.'); return;
+    notify('warning', 'Input Kosong', 'Username dan password wajib diisi');
+    return;
   }
 
-  setLoading('loginBtn', true, 'Memproses...');
+  if (!validateUsername(username)) {
+    notify('error', 'Username Tidak Valid', 'Username hanya boleh huruf, angka, underscore (3-20 karakter)');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memvalidasi...';
 
   try {
-    const users = await getUsers();
-    const hashedPw = hashPassword(password);
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === hashedPw);
+    const data = await readBin(BINS.users);
+    const users = data?.users || [];
+    const hashed = hashPassword(password);
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === hashed);
 
     if (!user) {
-      setLoading('loginBtn', false);
-      showAlert('error', 'Login Gagal', 'Username atau password salah!'); return;
+      notify('error', 'Login Gagal', 'Username atau password salah');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> LOGIN';
+      return;
     }
 
+    // Success - show welcome animation
     setSession(user);
+    btn.innerHTML = '<i class="fas fa-check"></i> Berhasil!';
 
     // Show welcome overlay
-    const overlay = document.getElementById('welcome-overlay');
-    const wMsg = document.getElementById('welcomeMsg');
-    if (overlay) {
-      if (wMsg) wMsg.textContent = `Welcome ${escapeHtml(user.username)}!`;
-      overlay.classList.add('show');
-    }
+    const wOverlay = document.createElement('div');
+    wOverlay.className = 'welcome-anim-overlay';
+    wOverlay.innerHTML = `
+      <div class="welcome-particles-ring"></div>
+      <div class="welcome-anim-text">
+        Welcome Back!
+        <span class="name-glow">${sanitizeInput(user.username)}!</span>
+      </div>
+      <div style="font-family:var(--font-body);font-size:14px;color:var(--purple-200);letter-spacing:3px;">REDIRECTING...</div>
+    `;
+    document.body.appendChild(wOverlay);
 
-    setTimeout(() => { window.location.href = 'home.html'; }, 2800);
-  } catch (e) {
-    setLoading('loginBtn', false);
-    showAlert('error', 'Error', 'Terjadi kesalahan. Coba lagi.');
+    setTimeout(() => {
+      window.location.href = 'home.html';
+    }, 3000);
+
+  } catch (err) {
+    notify('error', 'Error Server', 'Gagal terhubung ke database. Coba lagi.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> LOGIN';
   }
 }
 
-// ============================================================
-// AUTH: REGISTER
-// ============================================================
-async function handleRegister() {
-  const username = sanitizeInput(document.getElementById('regUsername')?.value || '');
-  const password = document.getElementById('regPassword')?.value || '';
-  const passwordConfirm = document.getElementById('regPasswordConfirm')?.value || '';
+// ============ REGISTER PAGE ============
+async function handleRegister(e) {
+  e.preventDefault();
+  const btn = document.getElementById('register-btn');
+  const username = sanitizeInput(document.getElementById('reg-username').value.trim());
+  const password = document.getElementById('reg-password').value;
+  const confirmPw = document.getElementById('reg-confirm').value;
 
-  // Validations
-  if (!username || !password || !passwordConfirm) {
-    showAlert('warning', 'Data Tidak Lengkap', 'Semua field wajib diisi!'); return;
-  }
-  if (username.length < 3) {
-    showAlert('warning', 'Username Pendek', 'Username minimal 3 karakter!'); return;
-  }
-  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-    showAlert('warning', 'Username Tidak Valid', 'Gunakan huruf, angka, atau underscore saja!'); return;
-  }
-  if (password.length < 6) {
-    showAlert('warning', 'Password Lemah', 'Password minimal 6 karakter!'); return;
-  }
-  if (password !== passwordConfirm) {
-    showAlert('warning', 'Password Tidak Cocok', 'Konfirmasi password tidak sesuai!'); return;
+  if (!username || !password || !confirmPw) {
+    notify('warning', 'Input Kosong', 'Semua field wajib diisi');
+    return;
   }
 
-  setLoading('registerBtn', true, 'Mendaftarkan...');
+  if (!validateUsername(username)) {
+    notify('error', 'Username Tidak Valid', 'Username: 3-20 karakter, hanya huruf/angka/underscore');
+    return;
+  }
+
+  if (!validatePassword(password)) {
+    notify('error', 'Password Terlalu Pendek', 'Password minimal 6 karakter');
+    return;
+  }
+
+  if (password !== confirmPw) {
+    notify('error', 'Password Tidak Cocok', 'Konfirmasi password tidak sesuai');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Membuat Akun...';
 
   try {
-    const users = await getUsers();
+    const data = await readBin(BINS.users);
+    const users = data?.users || [];
+
     const exists = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     if (exists) {
-      setLoading('registerBtn', false);
-      showAlert('error', 'Username Sudah Dipakai', 'Pilih username lain!'); return;
+      notify('error', 'Username Sudah Dipakai', 'Coba gunakan username lain');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-user-plus"></i> DAFTAR SEKARANG';
+      return;
     }
 
     const newUser = {
-      username,
+      id: 'USR_' + Date.now(),
+      username: username,
       password: hashPassword(password),
       credit: 0,
-      isAdmin: false,
+      usedPromos: [],
       createdAt: new Date().toISOString()
     };
-    users.push(newUser);
-    await setUsers(users);
 
-    setLoading('registerBtn', false);
-    await showAlert('success', 'Akun Berhasil Dibuat!', `Akun <b>${escapeHtml(username)}</b> sudah terdaftar. Silahkan login sekarang!`);
-    window.location.href = 'index.html';
-  } catch (e) {
-    setLoading('registerBtn', false);
-    showAlert('error', 'Registrasi Gagal', 'Terjadi kesalahan server. Coba lagi.');
+    users.push(newUser);
+    const result = await writeBin(BINS.users, { users });
+
+    if (!result) throw new Error('Write failed');
+
+    notify('success', 'Akun Berhasil Dibuat!', `Selamat ${username}! Silakan login sekarang.`);
+    btn.innerHTML = '<i class="fas fa-check"></i> Berhasil!';
+
+    setTimeout(() => {
+      window.location.href = 'index.html';
+    }, 2000);
+
+  } catch (err) {
+    notify('error', 'Error Server', 'Gagal membuat akun. Coba lagi.');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-user-plus"></i> DAFTAR SEKARANG';
   }
 }
 
-// ============================================================
-// HOME PAGE INIT
-// ============================================================
-async function initHomePage() {
-  const sess = getSession() || checkRememberMe();
-  if (!sess) { window.location.href = 'index.html'; return; }
+// ============ HOME PAGE ============
+let homeData = { settings: null, products: [], transactions: [], currentUser: null };
+let selectedProduct = null;
+let selectedPlan = null;
+let selectedPrice = 0;
+let selectedPlanType = 'full';
+let quantity = 1;
 
-  setSession(sess); // refresh session
+async function initHome() {
+  const session = requireAuth();
+  if (!session) return;
+  homeData.currentUser = session;
 
-  // Update nav
-  const navUser = document.getElementById('navUsername');
-  const navCredit = document.getElementById('navCredit');
-  if (navUser) navUser.textContent = escapeHtml(sess.username);
+  // Update header
+  updateHeaderUser(session);
 
-  // Fetch fresh user data
-  const users = await getUsers();
-  const currentUser = users.find(u => u.username.toLowerCase() === sess.username.toLowerCase());
-  if (currentUser) {
-    setSession(currentUser);
-    if (navCredit) navCredit.textContent = formatRupiah(currentUser.credit || 0);
+  // Load all data in parallel
+  const [settingsData, productsData, txData, usersData] = await Promise.all([
+    readBin(BINS.settings),
+    readBin(BINS.products),
+    readBin(BINS.transactions),
+    readBin(BINS.users)
+  ]);
+
+  homeData.settings = settingsData || getDefaultSettings();
+  homeData.products = productsData?.products || [];
+  homeData.transactions = txData?.transactions || [];
+
+  // Get fresh credit from users bin
+  const users = usersData?.users || [];
+  const freshUser = users.find(u => u.id === session.id);
+  if (freshUser) {
+    homeData.currentUser.credit = freshUser.credit || 0;
+    updateCreditDisplay(freshUser.credit || 0);
+    // Update session
+    const s = JSON.parse(sessionStorage.getItem('drip_session') || localStorage.getItem('drip_remember') || '{}');
+    s.credit = freshUser.credit || 0;
+    sessionStorage.setItem('drip_session', JSON.stringify(s));
   }
 
-  // Load settings
-  const settings = await getSettings();
-
-  // Check maintenance mode
-  if (settings.maintenance) {
-    const mo = document.getElementById('maintenanceOverlay');
-    const mt = document.getElementById('maintenanceText');
-    if (mo) mo.style.display = 'flex';
-    if (mt) mt.textContent = settings.maintenanceReason || 'Website sedang dalam pemeliharaan.';
-    return; // Block dashboard
+  // Check maintenance
+  if (homeData.settings.maintenance?.enabled) {
+    showMaintenance(homeData.settings.maintenance.reason);
+    return;
   }
 
   // Running text
-  if (settings.runningText && settings.runningTextContent) {
-    const bar = document.getElementById('runningTextBar');
-    const t1 = document.getElementById('tickerText1');
-    const t2 = document.getElementById('tickerText2');
-    if (bar) bar.style.display = 'block';
-    if (t1) t1.textContent = settings.runningTextContent;
-    if (t2) t2.textContent = settings.runningTextContent;
+  if (homeData.settings.runningText?.enabled && homeData.settings.runningText?.text) {
+    showRunningText(homeData.settings.runningText.text);
   }
 
   // Welcome popup
-  if (settings.welcomePopup) {
-    const wpUser = document.getElementById('welcomeUsername');
-    if (wpUser) wpUser.textContent = `👋 ${escapeHtml(sess.username)}`;
-    setTimeout(() => openModal('welcomePopup'), 500);
+  if (homeData.settings.welcomePopup?.enabled !== false) {
+    setTimeout(() => showWelcomePopup(session.username), 800);
   }
 
-  // Notif 2
-  if (settings.notif2 && settings.notif2Text) {
-    const n2Icon = document.getElementById('notif2Icon');
-    const n2Title = document.getElementById('notif2Title');
-    const n2Text = document.getElementById('notif2Text');
-    if (n2Icon) n2Icon.innerHTML = `<i class="${escapeHtml(settings.notif2Icon || 'fas fa-info-circle')}"></i>`;
-    if (n2Title) {
-      const iconNames = {
-        'fas fa-exclamation-circle': 'Attention', 'fas fa-exclamation-triangle': 'Warning',
-        'fas fa-info-circle': 'Information', 'fas fa-bullhorn': 'Announcement', 'fas fa-shield-alt': 'Security Alert'
-      };
-      n2Title.textContent = iconNames[settings.notif2Icon] || 'Notification';
-    }
-    if (n2Text) n2Text.textContent = settings.notif2Text;
-    setTimeout(() => openModal('notif2Popup'), settings.welcomePopup ? 1000 : 500);
+  // Custom notification
+  if (homeData.settings.customNotif?.enabled && homeData.settings.customNotif?.text) {
+    setTimeout(() => showCustomNotif(homeData.settings.customNotif), 1500);
   }
 
-  // Load products
-  loadProducts();
-  showSection('products');
-  initScrollAnimations();
+  // Render products
+  renderProducts(homeData.products);
+
+  // Render transactions
+  renderTransactions(homeData.transactions.filter(t => t.userId === session.id));
+
+  // Init scroll
+  initScrollReveal();
+  initFAQ();
 }
 
-// ============================================================
-// SHOW SECTION
-// ============================================================
-function showSection(name) {
-  ['products', 'transactions', 'faq'].forEach(s => {
-    const el = document.getElementById(`section${s.charAt(0).toUpperCase() + s.slice(1)}`);
-    if (el) el.style.display = s === name ? 'block' : 'none';
-  });
-
-  // Update bottom nav active state
-  ['products', 'transactions', 'faq'].forEach(s => {
-    const btn = document.getElementById(`navBtn${s.charAt(0).toUpperCase() + s.slice(1)}`);
-    if (btn) btn.style.color = s === name ? 'var(--primary-light)' : 'var(--text-muted)';
-  });
-
-  if (name === 'transactions') loadUserTransactions();
-  if (name === 'faq') loadFAQ();
+function updateHeaderUser(session) {
+  const nameEl = document.getElementById('header-username');
+  const creditEl = document.getElementById('header-credit');
+  if (nameEl) nameEl.textContent = session.username;
+  if (creditEl) creditEl.textContent = formatCurrency(session.credit || 0);
 }
 
-// ============================================================
-// PRODUCTS
-// ============================================================
-async function loadProducts() {
-  const grid = document.getElementById('productsGrid');
+function updateCreditDisplay(amount) {
+  const el = document.getElementById('header-credit');
+  if (el) el.textContent = formatCurrency(amount);
+}
+
+function formatCurrency(amount) {
+  if (amount >= 1000000) return (amount / 1000000).toFixed(1) + 'Jt';
+  if (amount >= 1000) return (amount / 1000).toFixed(0) + 'K';
+  return 'Rp' + amount.toLocaleString('id-ID');
+}
+
+function showMaintenance(reason) {
+  const overlay = document.getElementById('maintenance-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  const reasonEl = document.getElementById('maintenance-reason');
+  if (reasonEl) reasonEl.textContent = reason || 'Website sedang dalam perbaikan. Silakan coba beberapa saat lagi.';
+}
+
+function showRunningText(text) {
+  const bar = document.getElementById('running-text-bar');
+  if (!bar) return;
+  bar.style.display = 'block';
+  const wrap = document.getElementById('running-text-wrap');
+  if (wrap) {
+    const content = `<span class="running-text-item"><span class="dot-sep"></span>${sanitizeInput(text)}<span class="dot-sep"></span>${sanitizeInput(text)}<span class="dot-sep"></span>${sanitizeInput(text)}</span>`;
+    wrap.innerHTML = content + content; // duplicate for seamless loop
+  }
+}
+
+function showWelcomePopup(username) {
+  const overlay = document.getElementById('welcome-popup');
+  if (!overlay) return;
+  const nameEl = document.getElementById('welcome-username');
+  if (nameEl) nameEl.textContent = username;
+  overlay.classList.remove('hidden');
+}
+
+function showCustomNotif(notif) {
+  const overlay = document.getElementById('custom-notif-popup');
+  if (!overlay) return;
+  const iconEl = document.getElementById('custom-notif-icon');
+  const textEl = document.getElementById('custom-notif-text');
+  if (iconEl) iconEl.className = `fas fa-${notif.icon || 'bell'}`;
+  if (textEl) textEl.textContent = notif.text;
+  overlay.classList.remove('hidden');
+}
+
+function renderProducts(products) {
+  const grid = document.getElementById('products-grid');
   if (!grid) return;
-  grid.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p class="empty-state-title">Memuat produk...</p></div>';
 
-  const products = await getProducts();
-  const count = document.getElementById('productCount');
-  if (count) count.textContent = `${products.length} produk tersedia`;
-
-  if (products.length === 0) {
-    grid.innerHTML = '<div class="empty-state"><i class="fas fa-box-open"></i><p class="empty-state-title">Belum ada produk tersedia</p><p style="font-size:0.8rem;color:var(--text-muted);">Hubungi admin untuk menambahkan produk</p></div>';
+  if (!products.length) {
+    grid.innerHTML = '<div style="color:var(--gray-400);text-align:center;padding:40px;grid-column:1/-1;font-family:var(--font-body)">Belum ada produk tersedia.</div>';
     return;
   }
 
-  grid.innerHTML = '';
-  products.forEach((prod, i) => {
-    const card = document.createElement('div');
-    card.className = 'product-card fade-in-scroll';
-    card.style.animationDelay = (i * 0.1) + 's';
-
-    const startPrice = prod.hargaFull?.[0]?.harga || 0;
-    const featureList = (prod.fitur || []).slice(0, 4).map(f => `<li>${escapeHtml(f)}</li>`).join('');
-
-    card.innerHTML = `
-      <div class="product-image-wrap">
-        ${prod.image
-          ? `<img src="${escapeHtml(prod.image)}" alt="${escapeHtml(prod.nama)}" class="product-image" onerror="this.parentElement.innerHTML='<div class=&quot;product-image-placeholder&quot;><i class=&quot;fas fa-gem&quot;></i></div>'">`
-          : '<div class="product-image-placeholder"><i class="fas fa-gem"></i></div>'
+  grid.innerHTML = products.map(p => `
+    <div class="product-card scroll-reveal" onclick="openProductDetail('${p.id}')">
+      <div class="product-img-wrap">
+        ${p.image
+          ? `<img src="${sanitizeInput(p.image)}" class="product-img" alt="${sanitizeInput(p.name)}" onerror="this.parentElement.classList.add('img-placeholder');this.parentElement.innerHTML='<i class=\\'fas fa-gamepad\\'></i>'">`
+          : '<div class="product-img-wrap img-placeholder"><i class="fas fa-gamepad"></i></div>'
         }
-        <span class="product-badge">HOT</span>
+        <div class="product-img-overlay"></div>
       </div>
       <div class="product-body">
-        <div class="product-name">${escapeHtml(prod.nama)}</div>
-        <div class="product-desc">${escapeHtml(prod.desc || '')}</div>
-        <ul class="product-features">${featureList}</ul>
-        <div class="product-price-tag">
-          <i class="fas fa-tag"></i> Mulai dari ${formatRupiah(startPrice)}
-        </div>
-      </div>`;
-
-    card.addEventListener('click', () => openBuyModal(prod));
-    grid.appendChild(card);
-  });
-  initScrollAnimations();
-}
-
-// ============================================================
-// BUY MODAL
-// ============================================================
-function openBuyModal(prod) {
-  const title = document.getElementById('buyModalTitle');
-  if (title) title.textContent = escapeHtml(prod.nama);
-
-  const body = document.getElementById('buyModalBody');
-  if (!body) return;
-
-  const hasRental = prod.rentalEnabled && prod.hargaRental && prod.hargaRental.length > 0;
-
-  let fullOptions = (prod.hargaFull || []).map((h, i) => `
-    <label class="price-option" onclick="selectPriceOption(this, ${h.harga}, 'full')">
-      <input type="radio" name="priceSelect" value="${h.harga}" data-type="full" data-label="${escapeHtml(h.label)}">
-      <span class="price-label">${escapeHtml(h.label)}</span>
-      <span class="price-amount">${formatRupiah(h.harga)}</span>
-    </label>`).join('');
-
-  let rentalOptions = hasRental ? (prod.hargaRental || []).map((h, i) => `
-    <label class="price-option" onclick="selectPriceOption(this, ${h.harga}, 'rental')">
-      <input type="radio" name="priceSelect" value="${h.harga}" data-type="rental" data-label="${escapeHtml(h.label)}">
-      <span class="price-label">${escapeHtml(h.label)}</span>
-      <span class="price-amount">${formatRupiah(h.harga)}</span>
-    </label>`).join('') : '';
-
-  body.innerHTML = `
-    <div style="margin-bottom:15px;">
-      ${hasRental ? `
-      <div class="plan-tabs">
-        <button class="plan-tab active" onclick="switchPlanTab('full',this)"><i class="fas fa-key"></i> Access Full Key</button>
-        <button class="plan-tab" onclick="switchPlanTab('rental',this)"><i class="fas fa-clock"></i> Rental Keys</button>
-      </div>` : ''}
-      <div class="price-options active" id="optFull">${fullOptions}</div>
-      ${hasRental ? `<div class="price-options" id="optRental">${rentalOptions}</div>` : ''}
-    </div>
-
-    <div class="quantity-row">
-      <span class="quantity-label"><i class="fas fa-layer-group" style="margin-right:6px;color:var(--primary);"></i> Quantity:</span>
-      <button class="qty-btn" onclick="changeQty(-1)"><i class="fas fa-minus"></i></button>
-      <span class="qty-display" id="qtyDisplay">1</span>
-      <button class="qty-btn" onclick="changeQty(1)"><i class="fas fa-plus"></i></button>
-    </div>
-
-    <div class="total-price-display">
-      <div class="total-label">Total Pembayaran</div>
-      <div class="total-amount" id="totalAmount">Pilih opsi terlebih dahulu</div>
-    </div>
-
-    <div class="form-group">
-      <label class="form-label"><i class="fas fa-ticket-alt" style="margin-right:5px;color:var(--primary);"></i> Kode Promo (Opsional)</label>
-      <div style="display:flex;gap:10px;">
-        <div class="input-wrapper" style="flex:1;">
-          <i class="fas fa-hashtag input-icon"></i>
-          <input type="text" class="form-input" id="promoInput" placeholder="Masukan kode promo..." style="text-transform:uppercase" maxlength="20">
-        </div>
-        <button class="btn btn-secondary btn-sm" onclick="applyPromo()"><i class="fas fa-check"></i> Apply</button>
-      </div>
-      <div id="promoStatus" style="font-family:'Rajdhani',sans-serif;font-size:0.82rem;margin-top:5px;"></div>
-    </div>
-
-    <div class="form-group">
-      <label class="form-label"><i class="fab fa-whatsapp" style="margin-right:5px;color:#25d366;"></i> Nomor WhatsApp</label>
-      <div class="input-wrapper">
-        <i class="fab fa-whatsapp input-icon"></i>
-        <input type="text" class="form-input" id="waNumber" placeholder="Contoh: 08123456789" maxlength="15">
+        <div class="product-name">${sanitizeInput(p.name)}</div>
+        <div class="product-desc">${sanitizeInput(p.desc || '')}</div>
+        <ul class="product-features">
+          ${(p.features || []).map(f => `<li>${sanitizeInput(f)}</li>`).join('')}
+        </ul>
+        <button class="product-btn"><i class="fas fa-shopping-cart"></i> Lihat Harga</button>
       </div>
     </div>
+  `).join('');
 
-    <button class="btn btn-primary" id="buyNowBtn" onclick="processBuy('${escapeHtml(prod.id)}', '${escapeHtml(prod.nama)}')">
-      <i class="fas fa-shopping-cart"></i> Buy Now
-    </button>`;
-
-  // Store current product in modal
-  body.dataset.prodId = prod.id;
-  body.dataset.basePrice = 0;
-  body.dataset.qty = 1;
-  body.dataset.discountPct = 0;
-
-  openModal('buyModal');
+  initScrollReveal();
 }
 
-function switchPlanTab(type, btn) {
+function openProductDetail(productId) {
+  const product = homeData.products.find(p => p.id === productId);
+  if (!product) return;
+  selectedProduct = product;
+  selectedPlan = null;
+  selectedPrice = 0;
+  quantity = 1;
+  selectedPlanType = 'full';
+
+  const popup = document.getElementById('product-popup');
+  if (!popup) return;
+
+  document.getElementById('product-popup-name').textContent = product.name;
+  document.getElementById('product-popup-img').src = product.image || '';
+  document.getElementById('product-popup-img').onerror = function() { this.style.display='none'; };
+
+  // Render full key plans
+  const fullPlans = document.getElementById('full-key-plans');
+  const rentalPlans = document.getElementById('rental-plans');
+  const rentalTab = document.getElementById('rental-tab');
+
+  if (fullPlans) {
+    fullPlans.innerHTML = (product.fullPlans || []).map((plan, i) => `
+      <div class="plan-option" onclick="selectPlan(this, '${plan.label}', ${plan.price}, 'full')">
+        <span class="plan-option-name">${sanitizeInput(plan.label)}</span>
+        <span class="plan-option-price">Rp ${parseInt(plan.price).toLocaleString('id-ID')}</span>
+      </div>
+    `).join('') || '<div style="color:var(--gray-400);padding:10px;font-size:13px;">Tidak ada plan tersedia.</div>';
+  }
+
+  if (rentalPlans) {
+    if (product.hasRental && product.rentalPlans?.length) {
+      rentalPlans.innerHTML = (product.rentalPlans || []).map((plan, i) => `
+        <div class="plan-option" onclick="selectPlan(this, '${plan.label}', ${plan.price}, 'rental')">
+          <span class="plan-option-name">${sanitizeInput(plan.label)}</span>
+          <span class="plan-option-price">Rp ${parseInt(plan.price).toLocaleString('id-ID')}</span>
+        </div>
+      `).join('');
+      if (rentalTab) rentalTab.style.display = '';
+    } else {
+      if (rentalTab) rentalTab.style.display = 'none';
+    }
+  }
+
+  updateTotal();
+  popup.classList.remove('hidden');
+  document.getElementById('promo-result').textContent = '';
+  document.getElementById('promo-input').value = '';
+  document.getElementById('wa-input').value = '';
+  document.getElementById('qty-display').textContent = '1';
+}
+
+function selectPlan(el, label, price, type) {
+  document.querySelectorAll('.plan-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedPlan = label;
+  selectedPrice = parseInt(price);
+  selectedPlanType = type;
+  quantity = 1;
+  document.getElementById('qty-display').textContent = '1';
+  updateTotal();
+}
+
+function switchPlanTab(type) {
   document.querySelectorAll('.plan-tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('.price-options').forEach(p => p.classList.remove('active'));
-  const target = document.getElementById('opt' + type.charAt(0).toUpperCase() + type.slice(1));
-  if (target) target.classList.add('active');
-  // Reset selection
-  document.querySelectorAll('.price-option').forEach(p => p.classList.remove('selected'));
-  document.querySelectorAll('input[name="priceSelect"]').forEach(r => r.checked = false);
-  updateTotal(0);
+  document.querySelectorAll('.plan-options').forEach(o => o.classList.remove('active'));
+  document.getElementById(`tab-${type}`).classList.add('active');
+  document.getElementById(`plans-${type}`).classList.add('active');
+  selectedPlan = null;
+  selectedPrice = 0;
+  selectedPlanType = type;
+  document.querySelectorAll('.plan-option').forEach(o => o.classList.remove('selected'));
+  quantity = 1;
+  document.getElementById('qty-display').textContent = '1';
+  updateTotal();
 }
 
-function selectPriceOption(label, price, type) {
-  document.querySelectorAll('.price-option').forEach(p => p.classList.remove('selected'));
-  label.classList.add('selected');
-  const body = document.getElementById('buyModalBody');
-  if (body) body.dataset.basePrice = price;
-  updateTotal(price);
-}
+let appliedPromo = null;
+let discountPercent = 0;
 
 function changeQty(delta) {
-  const display = document.getElementById('qtyDisplay');
-  const body = document.getElementById('buyModalBody');
-  if (!display || !body) return;
-  let qty = parseInt(display.textContent) + delta;
-  if (qty < 1) qty = 1;
-  if (qty > 99) qty = 99;
-  display.textContent = qty;
-  body.dataset.qty = qty;
-  const base = parseInt(body.dataset.basePrice) || 0;
-  const disc = parseInt(body.dataset.discountPct) || 0;
-  const afterDisc = Math.round(base * (1 - disc / 100));
-  updateTotal(afterDisc);
+  quantity = Math.max(1, quantity + delta);
+  document.getElementById('qty-display').textContent = quantity;
+  updateTotal();
 }
 
-function updateTotal(basePrice) {
-  const display = document.getElementById('totalAmount');
-  const body = document.getElementById('buyModalBody');
-  const qty = parseInt(body?.dataset?.qty || 1);
-  if (!display) return;
-  if (!basePrice || basePrice === 0) { display.textContent = 'Pilih opsi terlebih dahulu'; return; }
-  display.textContent = formatRupiah(basePrice * qty);
+function updateTotal() {
+  const base = selectedPrice * quantity;
+  const discount = appliedPromo ? Math.floor(base * discountPercent / 100) : 0;
+  const total = base - discount;
+  const el = document.getElementById('total-price');
+  if (el) el.textContent = `Rp ${total.toLocaleString('id-ID')}`;
 }
 
 async function applyPromo() {
-  const code = sanitizeInput(document.getElementById('promoInput')?.value || '').toUpperCase();
-  const statusEl = document.getElementById('promoStatus');
-  const body = document.getElementById('buyModalBody');
-  if (!code) { if (statusEl) statusEl.innerHTML = '<span style="color:var(--warning);">Masukan kode promo.</span>'; return; }
+  const code = document.getElementById('promo-input').value.trim().toUpperCase();
+  const resultEl = document.getElementById('promo-result');
+  if (!code) { resultEl.textContent = 'Masukan kode promo terlebih dahulu.'; resultEl.style.color = 'var(--gold)'; return; }
 
-  const promos = await getPromo();
-  const promo = promos.find(p => p.code === code);
-  const sess = getSession();
+  resultEl.textContent = 'Memvalidasi promo...';
+  resultEl.style.color = 'var(--purple-200)';
 
-  if (!promo) {
-    if (statusEl) statusEl.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-times"></i> Kode promo tidak ditemukan.</span>';
-    return;
-  }
+  try {
+    const [promoData, usersData] = await Promise.all([readBin(BINS.promoCodes), readBin(BINS.users)]);
+    const promos = promoData?.promos || [];
+    const users = usersData?.users || [];
+    const user = users.find(u => u.id === homeData.currentUser.id);
 
-  if ((promo.usedCount || 0) >= promo.maxUse) {
-    if (statusEl) statusEl.innerHTML = `<span style="color:var(--danger);"><i class="fas fa-ban"></i> Promo sudah mencapai batas ${promo.maxUse} pengguna.</span>`;
-    return;
-  }
+    const promo = promos.find(p => p.code === code && p.active !== false);
+    if (!promo) {
+      resultEl.textContent = '❌ Kode promo tidak ditemukan atau sudah tidak aktif.';
+      resultEl.style.color = '#ff5555';
+      appliedPromo = null;
+      discountPercent = 0;
+      updateTotal();
+      return;
+    }
 
-  // Check if user already used this promo
-  if (promo.usedBy && promo.usedBy.includes(sess.username)) {
-    if (statusEl) statusEl.innerHTML = '<span style="color:var(--danger);"><i class="fas fa-ban"></i> Anda sudah pernah menggunakan promo ini.</span>';
-    return;
-  }
+    // Check if user already used this promo
+    if (user?.usedPromos?.includes(code)) {
+      resultEl.textContent = '❌ Kamu sudah pernah menggunakan promo ini.';
+      resultEl.style.color = '#ff5555';
+      appliedPromo = null;
+      discountPercent = 0;
+      updateTotal();
+      return;
+    }
 
-  if (statusEl) statusEl.innerHTML = `<span style="color:var(--success);"><i class="fas fa-check"></i> Promo valid! Diskon ${promo.percent}% berhasil diterapkan.</span>`;
-  if (body) {
-    body.dataset.discountPct = promo.percent;
-    body.dataset.promoCode = code;
-    const base = parseInt(body.dataset.basePrice) || 0;
-    const qty = parseInt(body.dataset.qty) || 1;
-    const afterDisc = Math.round(base * (1 - promo.percent / 100));
-    updateTotal(afterDisc);
+    // Check max usage
+    const usedCount = promo.usedCount || 0;
+    const maxUsage = promo.maxUsage || 999999;
+    if (usedCount >= maxUsage) {
+      resultEl.textContent = `❌ Promo sudah mencapai batas pemakaian (${maxUsage} pengguna).`;
+      resultEl.style.color = '#ff5555';
+      appliedPromo = null;
+      discountPercent = 0;
+      updateTotal();
+      return;
+    }
+
+    appliedPromo = promo;
+    discountPercent = promo.percent || 0;
+    resultEl.textContent = `✅ Promo berhasil! Diskon ${discountPercent}%`;
+    resultEl.style.color = 'var(--accent-green)';
+    updateTotal();
+
+  } catch (err) {
+    resultEl.textContent = '⚠️ Gagal validasi promo. Coba lagi.';
+    resultEl.style.color = 'var(--gold)';
   }
 }
 
-async function processBuy(prodId, prodNama) {
-  const sess = getSession();
-  if (!sess) { window.location.href = 'index.html'; return; }
-
-  const body = document.getElementById('buyModalBody');
-  const selectedRadio = document.querySelector('input[name="priceSelect"]:checked');
-  const wa = sanitizeInput(document.getElementById('waNumber')?.value || '');
-
-  if (!selectedRadio) { showAlert('warning', 'Pilih Opsi', 'Silahkan pilih paket terlebih dahulu!'); return; }
-  if (!wa) { showAlert('warning', 'No. WhatsApp', 'Masukan nomor WhatsApp Anda!'); return; }
-  if (!/^[0-9]{10,15}$/.test(wa.replace(/\s/g, ''))) { showAlert('warning', 'Format WA Salah', 'Masukan nomor WA yang valid (10-15 digit)!'); return; }
-
-  const basePrice = parseInt(selectedRadio.value);
-  const discPct = parseInt(body.dataset.discountPct) || 0;
-  const qty = parseInt(body.dataset.qty) || 1;
-  const finalPrice = Math.round(basePrice * (1 - discPct / 100)) * qty;
-  const planType = selectedRadio.dataset.type === 'rental' ? 'Rental Keys' : 'Access Full Key';
-  const planLabel = selectedRadio.dataset.label;
-  const promoCode = body.dataset.promoCode || '';
-
-  // Check credit
-  const users = await getUsers();
-  const userIdx = users.findIndex(u => u.username.toLowerCase() === sess.username.toLowerCase());
-  if (userIdx === -1) { showAlert('error', 'Error', 'User tidak ditemukan!'); return; }
-
-  const user = users[userIdx];
-  if ((user.credit || 0) < finalPrice) {
-    showAlert('error', 'Saldo Tidak Cukup', `Saldo Anda: ${formatRupiah(user.credit || 0)}<br>Harga: ${formatRupiah(finalPrice)}<br><br>Hubungi admin untuk top up saldo.`);
+async function processBuy() {
+  if (!selectedPlan) {
+    notify('warning', 'Pilih Paket', 'Silakan pilih paket terlebih dahulu');
     return;
   }
 
-  const result = await Swal.fire({
-    title: 'Konfirmasi Pembelian',
-    html: `
-      <div style="text-align:left;padding:10px 0;font-family:'Exo 2',sans-serif;">
-        <p style="margin-bottom:8px;"><b>Produk:</b> ${escapeHtml(prodNama)}</p>
-        <p style="margin-bottom:8px;"><b>Paket:</b> ${escapeHtml(planType)} - ${escapeHtml(planLabel)}</p>
-        <p style="margin-bottom:8px;"><b>Quantity:</b> ${qty}x</p>
-        ${discPct > 0 ? `<p style="margin-bottom:8px;color:#10b981;"><b>Diskon:</b> ${discPct}%</p>` : ''}
-        <p style="margin-bottom:8px;"><b>Total:</b> <span style="color:var(--primary-light);font-weight:700;">${formatRupiah(finalPrice)}</span></p>
-      </div>`,
-    icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Beli!', cancelButtonText: 'Batal'
-  });
+  const waNum = document.getElementById('wa-input').value.trim();
+  if (!waNum) {
+    notify('warning', 'Nomor WA Kosong', 'Masukan nomor WhatsApp untuk konfirmasi pesanan');
+    return;
+  }
 
-  if (!result.isConfirmed) return;
+  const base = selectedPrice * quantity;
+  const discount = appliedPromo ? Math.floor(base * discountPercent / 100) : 0;
+  const total = base - discount;
 
-  setLoading('buyNowBtn', true, 'Memproses...');
+  if (homeData.currentUser.credit < total) {
+    notify('error', 'Saldo Tidak Cukup', `Saldo kamu Rp${homeData.currentUser.credit.toLocaleString()} tidak cukup untuk membeli.`);
+    return;
+  }
+
+  const buyBtn = document.getElementById('buy-btn');
+  buyBtn.disabled = true;
+  buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
 
   try {
-    // Deduct credit
-    users[userIdx].credit = (user.credit || 0) - finalPrice;
-    await setUsers(users);
-    setSession(users[userIdx]);
+    // Deduct credit from user
+    const usersData = await readBin(BINS.users);
+    const users = usersData?.users || [];
+    const userIdx = users.findIndex(u => u.id === homeData.currentUser.id);
+    if (userIdx === -1) throw new Error('User not found');
 
-    // Update nav credit
-    const navCredit = document.getElementById('navCredit');
-    if (navCredit) navCredit.textContent = formatRupiah(users[userIdx].credit);
+    users[userIdx].credit -= total;
+    if (appliedPromo) {
+      users[userIdx].usedPromos = users[userIdx].usedPromos || [];
+      users[userIdx].usedPromos.push(appliedPromo.code);
+    }
+    await writeBin(BINS.users, { users });
 
-    // If promo used, mark it
-    if (promoCode) {
-      const promos = await getPromo();
-      const pIdx = promos.findIndex(p => p.code === promoCode);
-      if (pIdx !== -1) {
-        promos[pIdx].usedCount = (promos[pIdx].usedCount || 0) + 1;
-        if (!promos[pIdx].usedBy) promos[pIdx].usedBy = [];
-        promos[pIdx].usedBy.push(sess.username);
-        await setPromo(promos);
+    // Update promo usage count
+    if (appliedPromo) {
+      const promoData = await readBin(BINS.promoCodes);
+      const promos = promoData?.promos || [];
+      const promoIdx = promos.findIndex(p => p.code === appliedPromo.code);
+      if (promoIdx !== -1) {
+        promos[promoIdx].usedCount = (promos[promoIdx].usedCount || 0) + 1;
+        await writeBin(BINS.promoCodes, { promos });
       }
     }
 
     // Create transaction
-    const trxId = generateId('TRX');
-    const transactions = await getTransactions();
-    const newTrx = {
-      id: trxId, username: sess.username, prodId, prodNama,
-      planType, planLabel, qty, basePrice, discPct, totalPrice: finalPrice,
-      promoCode, waNumber: wa, status: 'waiting', keys: [],
+    const txData = await readBin(BINS.transactions);
+    const transactions = txData?.transactions || [];
+    const newTx = {
+      id: generateTxId(),
+      userId: homeData.currentUser.id,
+      username: homeData.currentUser.username,
+      productId: selectedProduct.id,
+      productName: selectedProduct.name,
+      plan: selectedPlan,
+      planType: selectedPlanType,
+      quantity: quantity,
+      basePrice: base,
+      discount: discount,
+      total: total,
+      promoCode: appliedPromo?.code || null,
+      whatsapp: sanitizeInput(waNum),
+      status: 'waiting',
+      keys: [],
       createdAt: new Date().toISOString()
     };
-    transactions.push(newTrx);
-    await setTransactions(transactions);
+    transactions.push(newTx);
+    await writeBin(BINS.transactions, { transactions });
 
-    // Update stats
-    const settings = await getSettings();
-    const today = new Date().toDateString();
-    if (settings.lastReset !== today) {
-      settings.terjualHariIni = 0; settings.lastReset = today;
-    }
-    settings.totalPenghasilan = (settings.totalPenghasilan || 0) + finalPrice;
-    settings.terjualHariIni = (settings.terjualHariIni || 0) + qty;
-    await setSettings(settings);
+    // Update local credit
+    homeData.currentUser.credit -= total;
+    updateCreditDisplay(homeData.currentUser.credit);
 
-    setLoading('buyNowBtn', false);
-    closeModal('buyModal');
+    notify('success', 'Pembelian Berhasil!', `Pesanan kamu sedang diproses. Cek "Logs Transaksi".`);
+    closeProductPopup();
+    appliedPromo = null;
+    discountPercent = 0;
 
-    await showAlert('success', 'Pembelian Berhasil! 🎉',
-      `Transaksi <b>${trxId}</b> berhasil dibuat.<br><br>Saldo dipotong: <b>${formatRupiah(finalPrice)}</b><br>Kami akan memproses pesanan Anda segera. Cek <b>Logs Transaksi</b> untuk status.`);
+    // Refresh transactions
+    homeData.transactions = transactions;
+    renderTransactions(transactions.filter(t => t.userId === homeData.currentUser.id));
 
-  } catch (e) {
-    setLoading('buyNowBtn', false);
-    showAlert('error', 'Error', 'Terjadi kesalahan. Coba lagi.');
+  } catch (err) {
+    notify('error', 'Gagal Membeli', 'Terjadi kesalahan. Saldo tidak dipotong. Coba lagi.');
   }
+
+  buyBtn.disabled = false;
+  buyBtn.innerHTML = '<i class="fas fa-bolt"></i> BUY NOW';
 }
 
-// ============================================================
-// USER TRANSACTIONS
-// ============================================================
-async function loadUserTransactions() {
-  const sess = getSession();
-  const list = document.getElementById('transactionList');
-  if (!list || !sess) return;
-  list.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p class="empty-state-title">Memuat...</p></div>';
+function renderTransactions(txs) {
+  const container = document.getElementById('trans-list');
+  if (!container) return;
 
-  const transactions = await getTransactions();
-  const myTrx = transactions.filter(t => t.username.toLowerCase() === sess.username.toLowerCase())
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-  if (myTrx.length === 0) {
-    list.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p class="empty-state-title">Belum ada transaksi</p><p style="font-size:0.8rem;color:var(--text-muted);">Beli produk untuk memulai</p></div>';
+  if (!txs.length) {
+    container.innerHTML = '<div style="color:var(--gray-400);text-align:center;padding:30px;font-family:var(--font-body);">Belum ada transaksi.</div>';
     return;
   }
 
-  list.innerHTML = '';
-  myTrx.forEach(trx => {
-    const item = document.createElement('div');
-    item.className = 'transaction-item';
-    const statusClass = `status-${trx.status}`;
-    const statusLabel = trx.status === 'waiting' ? 'Menunggu' : trx.status === 'approved' ? 'Approved' : 'Rejected';
-    item.innerHTML = `
-      <div class="trx-info">
-        <div class="trx-product">${escapeHtml(trx.prodNama)}</div>
-        <div class="trx-date">${escapeHtml(trx.planType)} • ${escapeHtml(trx.planLabel)} • ${formatDate(trx.createdAt)}</div>
+  container.innerHTML = txs.slice().reverse().map(tx => `
+    <div class="trans-item scroll-reveal" onclick="openTransDetail('${tx.id}')">
+      <div class="trans-icon" style="color:${tx.status==='approved'?'var(--accent-green)':tx.status==='rejected'?'#ff5555':'var(--gold)'}">
+        <i class="fas fa-${tx.status==='approved'?'check-circle':tx.status==='rejected'?'times-circle':'clock'}"></i>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-        <div class="trx-amount">${formatRupiah(trx.totalPrice)}</div>
-        <span class="status-badge ${statusClass}">${statusLabel}</span>
-      </div>`;
-    item.addEventListener('click', () => showTrxDetail(trx));
-    list.appendChild(item);
-  });
+      <div class="trans-info">
+        <div class="trans-name">${sanitizeInput(tx.productName)}</div>
+        <div class="trans-id">${sanitizeInput(tx.id)}</div>
+        <div class="trans-date">${new Date(tx.createdAt).toLocaleString('id-ID')}</div>
+      </div>
+      <div class="trans-status status-${tx.status}">${tx.status === 'waiting' ? 'MENUNGGU' : tx.status === 'approved' ? 'DISETUJUI' : 'DITOLAK'}</div>
+    </div>
+  `).join('');
+
+  initScrollReveal();
 }
 
-function showTrxDetail(trx) {
-  const body = document.getElementById('trxDetailBody');
-  if (!body) return;
-  const statusClass = `status-${trx.status}`;
-  const statusLabel = trx.status === 'waiting' ? 'Menunggu' : trx.status === 'approved' ? '✅ Approved' : '❌ Rejected';
-  const keysHtml = trx.keys && trx.keys.length > 0
-    ? trx.keys.map(k => `<div style="background:rgba(124,58,237,0.1);border:1px solid var(--border-glow);border-radius:8px;padding:10px 14px;font-family:'Courier New',monospace;font-size:0.9rem;color:var(--accent);margin-bottom:6px;word-break:break-all;">${escapeHtml(k)}</div>`).join('')
-    : '<p style="color:var(--text-muted);font-family:\'Rajdhani\',sans-serif;font-size:0.85rem;">Key belum dikirim. Tunggu konfirmasi admin.</p>';
+function openTransDetail(txId) {
+  const tx = homeData.transactions.find(t => t.id === txId);
+  if (!tx) return;
+  const popup = document.getElementById('trans-popup');
+  if (!popup) return;
 
-  body.innerHTML = `
-    <div style="font-family:'Exo 2',sans-serif;">
-      <div style="background:linear-gradient(135deg,rgba(124,58,237,0.1),rgba(232,121,249,0.05));border-radius:12px;padding:16px;margin-bottom:16px;border:1px solid var(--border);">
-        <p style="font-size:0.75rem;color:var(--text-muted);font-family:'Rajdhani',sans-serif;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">ID Transaksi</p>
-        <p style="font-family:'Orbitron',sans-serif;font-size:0.85rem;color:var(--primary-light);">${escapeHtml(trx.id)}</p>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;">
-        <div><p style="font-size:0.75rem;color:var(--text-muted);font-family:'Rajdhani',sans-serif;">PRODUK</p><p style="font-weight:600;">${escapeHtml(trx.prodNama)}</p></div>
-        <div><p style="font-size:0.75rem;color:var(--text-muted);font-family:'Rajdhani',sans-serif;">PAKET</p><p style="font-weight:600;">${escapeHtml(trx.planType)}</p></div>
-        <div><p style="font-size:0.75rem;color:var(--text-muted);font-family:'Rajdhani',sans-serif;">PILIHAN</p><p style="font-weight:600;">${escapeHtml(trx.planLabel)}</p></div>
-        <div><p style="font-size:0.75rem;color:var(--text-muted);font-family:'Rajdhani',sans-serif;">QTY</p><p style="font-weight:600;">${trx.qty}x</p></div>
-        <div><p style="font-size:0.75rem;color:var(--text-muted);font-family:'Rajdhani',sans-serif;">TANGGAL</p><p style="font-weight:600;font-size:0.82rem;">${formatDate(trx.createdAt)}</p></div>
-        <div><p style="font-size:0.75rem;color:var(--text-muted);font-family:'Rajdhani',sans-serif;">TOTAL</p><p style="font-weight:700;color:var(--primary-light);">${formatRupiah(trx.totalPrice)}</p></div>
-      </div>
-      <div style="margin-bottom:15px;display:flex;align-items:center;justify-content:space-between;">
-        <p style="font-size:0.75rem;color:var(--text-muted);font-family:'Rajdhani',sans-serif;">STATUS</p>
-        <span class="status-badge ${statusClass}">${statusLabel}</span>
-      </div>
-      <div>
-        <p style="font-size:0.75rem;color:var(--text-muted);font-family:'Rajdhani',sans-serif;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">
-          <i class="fas fa-key" style="color:var(--primary);margin-right:5px;"></i> Keys
-        </p>
-        ${keysHtml}
-      </div>
-    </div>`;
-  openModal('trxDetailModal');
+  document.getElementById('trans-popup-product').textContent = tx.productName;
+  document.getElementById('trans-popup-plan').textContent = `${tx.plan} (${tx.planType === 'rental' ? 'Rental' : 'Akses Penuh'}) x${tx.quantity}`;
+  document.getElementById('trans-popup-date').textContent = new Date(tx.createdAt).toLocaleString('id-ID');
+  document.getElementById('trans-popup-id').textContent = tx.id;
+  document.getElementById('trans-popup-total').textContent = `Rp ${tx.total.toLocaleString('id-ID')}`;
+  document.getElementById('trans-popup-status').className = `status-badge status-${tx.status}`;
+  document.getElementById('trans-popup-status').textContent = tx.status === 'waiting' ? '⏳ MENUNGGU' : tx.status === 'approved' ? '✅ DISETUJUI' : '❌ DITOLAK';
+
+  const keysEl = document.getElementById('trans-popup-keys');
+  if (tx.keys && tx.keys.length) {
+    keysEl.innerHTML = tx.keys.map(k => `<div style="font-family:monospace;background:rgba(0,0,0,0.3);border:1px solid var(--border-purple);border-radius:8px;padding:8px 12px;margin-bottom:6px;color:var(--accent-green);word-break:break-all;">${sanitizeInput(k)}</div>`).join('');
+  } else {
+    keysEl.innerHTML = '<div style="color:var(--gray-400);font-size:13px;">Key belum tersedia. Menunggu admin memproses.</div>';
+  }
+
+  popup.classList.remove('hidden');
 }
 
-// ============================================================
-// RESET KEY
-// ============================================================
-function openResetKey() {
-  document.getElementById('resetKeyInput').value = '';
-  const term = document.getElementById('terminalOutput');
-  const lines = document.getElementById('terminalLines');
-  if (term) term.style.display = 'none';
-  if (lines) lines.innerHTML = '';
-  openModal('resetKeyModal');
-}
-
+// ============ RESET KEY ============
 async function processResetKey() {
-  const input = sanitizeInput(document.getElementById('resetKeyInput')?.value || '');
-  if (!input) { showAlert('warning', 'Input Kosong', 'Masukan nomor key terlebih dahulu!'); return; }
+  const keyInput = document.getElementById('reset-key-input').value.trim();
+  if (!keyInput) {
+    notify('warning', 'Input Kosong', 'Masukan key terlebih dahulu');
+    return;
+  }
 
-  const settings = await getSettings();
-  const term = document.getElementById('terminalOutput');
-  const lines = document.getElementById('terminalLines');
-  if (term) term.style.display = 'block';
-  if (lines) lines.innerHTML = '';
+  const btn = document.getElementById('reset-btn');
+  const terminal = document.getElementById('reset-terminal');
+  const visualLoad = document.getElementById('reset-visual-load');
+  btn.disabled = true;
+  terminal.style.display = 'none';
+  visualLoad.style.display = 'block';
+  visualLoad.innerHTML = `
+    <div class="loading-line">⟶ Connecting to server...</div>
+    <div class="loading-line">⟶ Fetching database...</div>
+    <div class="loading-line">⟶ Processing response...</div>
+  `;
 
-  const addLine = (text, delay) => {
-    setTimeout(() => {
-      if (!lines) return;
-      const line = document.createElement('div');
-      line.className = 'terminal-line';
-      line.innerHTML = text;
-      line.style.animationDelay = '0s';
-      lines.appendChild(line);
-    }, delay);
-  };
+  try {
+    const settings = await readBin(BINS.settings);
+    const resetEnabled = settings?.resetKey?.enabled !== false;
 
-  addLine('$ Connecting to server...', 100);
-  addLine('$ Fetching Server.....', 400);
-  addLine('$ Response Database....', 900);
-
-  setTimeout(async () => {
-    if (!settings.resetKey) {
-      addLine('<span style="color:#ef4444;">✗ ERROR: Service unavailable</span>', 0);
-      setTimeout(() => {
-        addLine(`<br><span style="color:#ef4444;">❌ Reset Gagal</span><br><span style="color:#f87171;">Maaf fitur ini sedang di nonaktifkan oleh admin atau sedang tidak beroperasi normal. Silahkan coba lagi nanti.</span>`, 0);
-      }, 400);
-      return;
-    }
-
-    // Check daily limit
-    const sess = getSession();
-    const users = await getUsers();
-    const userIdx = users.findIndex(u => u.username === sess.username);
-    const today = new Date().toDateString();
-
-    if (userIdx !== -1) {
-      const user = users[userIdx];
-      if (user.lastResetDate === today && user.resetCount >= 1) {
-        addLine('<span style="color:#f97316;">⚠ Daily limit reached</span>', 0);
-        setTimeout(() => {
-          addLine(`<br><span style="color:#f97316;">❌ Reset Gagal - Batas Reset</span><br><span>Anda sudah melakukan reset hari ini. Coba lagi besok.</span>`, 0);
-        }, 400);
+    setTimeout(async () => {
+      if (!resetEnabled) {
+        visualLoad.style.display = 'none';
+        terminal.style.display = 'block';
+        terminal.innerHTML = `
+          <span class="code-line error">❌ Error: Feature Disabled</span>
+          <span class="code-line warn">Status: 403</span>
+          <span class="code-line">Response: {"success":false,"message":"Maaf fitur ini sedang di nonaktifkan oleh admin atau sedang tidak beroperasi normal, Silahkan coba lagi nanti."}</span>
+        `;
+        btn.disabled = false;
         return;
       }
 
-      // Success
-      addLine('<span style="color:#22c55e;">✓ Connection established</span>', 0);
-      setTimeout(() => addLine('<span style="color:#22c55e;">✓ Key found in database</span>', 0), 300);
-      setTimeout(() => addLine('<span style="color:#22c55e;">✓ Resetting device binding...</span>', 0), 700);
-      setTimeout(() => {
-        const resetCount = (user.resetCount || 0) + 1;
-        const timestamp = new Date().toLocaleString('id-ID');
-        const nextReset = new Date(Date.now() + 86400000).toLocaleString('id-ID');
+      // Check daily reset limit
+      const today = new Date().toDateString();
+      const resetLog = JSON.parse(localStorage.getItem('reset_log') || '{}');
+      const userId = homeData.currentUser.id;
+      
+      if (resetLog[userId]?.date === today && resetLog[userId]?.count >= 1) {
+        visualLoad.style.display = 'none';
+        terminal.style.display = 'block';
+        const nextReset = new Date();
+        nextReset.setHours(24,0,0,0);
+        terminal.innerHTML = `
+          <span class="code-line warn">⚠️ Reset Limit Reached</span>
+          <span class="code-line">Status: 429</span>
+          <span class="code-line info">Response: {"success":false,"message":"Reset limit reached","resetsused":1,"resetsmax":1,"nextresettime":"${nextReset.toISOString().replace('T',' ').substring(0,19)}"}</span>
+        `;
+        btn.disabled = false;
+        return;
+      }
 
-        users[userIdx].lastResetDate = today;
-        users[userIdx].resetCount = resetCount;
-        setUsers(users);
+      // Process reset
+      resetLog[userId] = { date: today, count: (resetLog[userId]?.count || 0) + 1 };
+      localStorage.setItem('reset_log', JSON.stringify(resetLog));
 
-        addLine(`<br><span style="color:#22c55e;font-size:1rem;">✅ Reset Successful</span><br><br><span>Status: 200</span><br><span>Response: {</span><br><span>&nbsp;&nbsp;"success": true,</span><br><span>&nbsp;&nbsp;"message": "Token reset successfully",</span><br><span>&nbsp;&nbsp;"key": "${escapeHtml(input)}",</span><br><span>&nbsp;&nbsp;"resetsUsed": ${resetCount},</span><br><span>&nbsp;&nbsp;"resetsMax": 1,</span><br><span>&nbsp;&nbsp;"resetTime": "${timestamp}",</span><br><span>&nbsp;&nbsp;"nextReset": "${nextReset}"</span><br><span>}</span>`, 0);
-      }, 1200);
-    }
-  }, 1400);
+      const usedResets = resetLog[userId].count;
+      const now = new Date();
+      const nextReset2 = new Date();
+      nextReset2.setHours(24,0,0,0);
+
+      visualLoad.style.display = 'none';
+      terminal.style.display = 'block';
+      terminal.innerHTML = `
+        <span class="code-line success">✅ Reset Successful</span>
+        <span class="code-line"></span>
+        <span class="code-line info">Status: 200</span>
+        <span class="code-line">Response: {</span>
+        <span class="code-line">&nbsp;&nbsp;"success": true,</span>
+        <span class="code-line">&nbsp;&nbsp;"message": "Token reset successfully",</span>
+        <span class="code-line">&nbsp;&nbsp;"key": "${sanitizeInput(keyInput.substring(0,4))}****",</span>
+        <span class="code-line">&nbsp;&nbsp;"resetsused": ${usedResets},</span>
+        <span class="code-line">&nbsp;&nbsp;"resetsmax": 1,</span>
+        <span class="code-line">&nbsp;&nbsp;"nextresettime": "${nextReset2.toISOString().replace('T',' ').substring(0,19)}"</span>
+        <span class="code-line">}</span>
+        <span class="code-line"></span>
+        <span class="code-line success">✔ Device HWID cleared</span>
+        <span class="code-line success">✔ Session token invalidated</span>
+        <span class="code-line success">✔ Reset complete - Login ulang di aplikasi</span>
+        <span class="code-cursor"></span>
+      `;
+      btn.disabled = false;
+
+    }, 2000);
+
+  } catch (err) {
+    visualLoad.style.display = 'none';
+    terminal.style.display = 'block';
+    terminal.innerHTML = `<span class="code-line error">❌ Server Error: ${err.message}</span>`;
+    btn.disabled = false;
+  }
 }
 
-// ============================================================
-// FAQ
-// ============================================================
-function loadFAQ() {
-  const list = document.getElementById('faqList');
-  if (!list) return;
-  const faqs = [
-    { q: 'Bagaimana cara membeli key di Drip Client?', a: 'Pilih produk yang diinginkan, klik pada card produk, pilih paket yang sesuai (Access Full Key atau Rental), masukan jumlah dan nomor WhatsApp Anda, lalu klik Buy Now. Pastikan saldo Anda mencukupi.' },
-    { q: 'Berapa lama proses pengiriman key setelah pembayaran?', a: 'Key akan dikirim setelah admin memverifikasi dan menyetujui transaksi Anda. Biasanya proses ini memakan waktu 5-30 menit pada jam aktif.' },
-    { q: 'Bagaimana cara top up saldo / credit?', a: 'Hubungi admin melalui WhatsApp atau platform yang tersedia. Admin akan memproses top up saldo Anda sesuai nominal yang diminta.' },
-    { q: 'Apakah key yang saya beli aman dari ban?', a: 'Kami menyediakan fitur antiban advanced pada produk kami. Namun penggunaan tetap menjadi tanggung jawab pengguna. Selalu gunakan dengan bijak.' },
-    { q: 'Apa itu fitur Reset Key?', a: 'Fitur Reset Key memungkinkan Anda untuk mereset binding device pada key Anda. Berguna jika Anda berganti perangkat. Dibatasi 1x per hari per akun.' },
-    { q: 'Bagaimana cara menggunakan kode promo?', a: 'Saat membeli produk, masukan kode promo pada field "Kode Promo" dan klik Apply. Diskon akan otomatis teraplikasi pada total harga. Setiap kode promo hanya bisa digunakan 1x per akun.' },
-    { q: 'Apakah ada refund jika key tidak berfungsi?', a: 'Jika key tidak berfungsi dan sudah dikonfirmasi oleh admin, kami akan mengirim ulang key yang valid atau mengembalikan saldo Anda. Hubungi admin segera.' },
-    { q: 'Bagaimana cara mengecek status transaksi saya?', a: 'Klik menu "Transaksi" atau "Logs Transaksi" di dashboard Anda. Setiap transaksi menampilkan status real-time: Menunggu, Approved, atau Rejected.' },
-  ];
-
-  list.innerHTML = '';
-  faqs.forEach((f, i) => {
-    const item = document.createElement('div');
-    item.className = 'faq-item fade-in-scroll';
-    item.innerHTML = `
-      <div class="faq-question" onclick="toggleFaq(this)">
-        <span>${escapeHtml(f.q)}</span>
-        <i class="fas fa-chevron-down"></i>
-      </div>
-      <div class="faq-answer">${escapeHtml(f.a)}</div>`;
-    list.appendChild(item);
-  });
-  initScrollAnimations();
+// ============ CLOSE POPUPS ============
+function closeProductPopup() {
+  document.getElementById('product-popup')?.classList.add('hidden');
 }
 
-function toggleFaq(questionEl) {
-  const item = questionEl.parentElement;
-  const wasOpen = item.classList.contains('open');
-  document.querySelectorAll('.faq-item.open').forEach(el => el.classList.remove('open'));
-  if (!wasOpen) item.classList.add('open');
+function closeTransPopup() {
+  document.getElementById('trans-popup')?.classList.add('hidden');
 }
 
-// ============================================================
-// LOGOUT
-// ============================================================
-function handleLogout() {
-  Swal.fire({
-    title: 'Logout?', text: 'Apakah Anda yakin ingin keluar?',
-    icon: 'question', showCancelButton: true,
-    confirmButtonText: 'Ya, Logout', cancelButtonText: 'Batal'
-  }).then(r => {
-    if (r.isConfirmed) {
-      clearSession();
-      window.location.href = 'index.html';
-    }
-  });
+function closeWelcomePopup() {
+  document.getElementById('welcome-popup')?.classList.add('hidden');
 }
 
-// ============================================================
-// ADMIN PAGE INIT
-// ============================================================
-async function initAdminPage() {
-  loadAdminStats();
-  loadAdminProducts();
-  loadAdminTransactions();
-  loadAdminPromos();
-  loadAdminUsers();
+function closeResetPopup() {
+  document.getElementById('reset-popup')?.classList.add('hidden');
+}
+
+function closeCustomNotif() {
+  document.getElementById('custom-notif-popup')?.classList.add('hidden');
+}
+
+function openResetPopup() {
+  document.getElementById('reset-key-input').value = '';
+  document.getElementById('reset-terminal').style.display = 'none';
+  document.getElementById('reset-visual-load').style.display = 'none';
+  document.getElementById('reset-popup')?.classList.remove('hidden');
+  // Close nav
+  document.getElementById('quick-nav')?.classList.remove('open');
+  document.getElementById('nav-overlay')?.classList.remove('show');
+}
+
+function openLogsSection() {
+  document.getElementById('quick-nav')?.classList.remove('open');
+  document.getElementById('nav-overlay')?.classList.remove('show');
+  document.getElementById('logs-section')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function logout() {
+  clearSession();
+  window.location.href = 'index.html';
+}
+
+// ============ ADMIN PAGE ============
+let adminData = { settings: null, products: [], transactions: [], users: [], promoCodes: [] };
+let editingProductId = null;
+
+async function initAdmin() {
+  const [settingsData, productsData, txData, usersData, promoData] = await Promise.all([
+    readBin(BINS.settings),
+    readBin(BINS.products),
+    readBin(BINS.transactions),
+    readBin(BINS.users),
+    readBin(BINS.promoCodes)
+  ]);
+
+  adminData.settings = settingsData || getDefaultSettings();
+  adminData.products = productsData?.products || [];
+  adminData.transactions = txData?.transactions || [];
+  adminData.users = usersData?.users || [];
+  adminData.promoCodes = promoData?.promos || [];
+
+  // Stats
+  updateAdminStats();
+
+  // Load settings into toggles
   loadAdminSettings();
-}
 
-function switchAdminTab(name) {
-  document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
-  const panel = document.getElementById(`panel${name.charAt(0).toUpperCase() + name.slice(1)}`);
-  const tab = document.getElementById(`tab${name.charAt(0).toUpperCase() + name.slice(1)}`);
-  if (panel) panel.classList.add('active');
-  if (tab) tab.classList.add('active');
-}
+  // Render products
+  renderAdminProducts();
 
-// ============================================================
-// ADMIN STATS
-// ============================================================
-async function loadAdminStats() {
-  const settings = await getSettings();
+  // Render promos
+  renderAdminPromos();
+
+  // Render logs
+  renderAdminLogs();
+
+  // Daily reset for terjual hari ini
   const today = new Date().toDateString();
-  // Reset daily if needed
-  if (settings.lastReset !== today) {
-    settings.terjualHariIni = 0; settings.lastReset = today;
-    await setSettings(settings);
+  const lastReset = adminData.settings.lastSaleReset;
+  if (lastReset !== today) {
+    adminData.settings.todaySales = 0;
+    adminData.settings.lastSaleReset = today;
+    await writeBin(BINS.settings, adminData.settings);
   }
 
-  const users = await getUsers();
-  const transactions = await getTransactions();
-  const approvedTrx = transactions.filter(t => t.status === 'approved');
-
-  const statTot = document.getElementById('statTotalPembeli');
-  const statPeng = document.getElementById('statPenghasilan');
-  const statHari = document.getElementById('statHariIni');
-
-  if (statTot) statTot.textContent = new Set(approvedTrx.map(t => t.username)).size;
-  if (statPeng) statPeng.textContent = formatRupiah(settings.totalPenghasilan || 0);
-  if (statHari) statHari.textContent = settings.terjualHariIni || 0;
-
-  // Animate stat cards
-  document.querySelectorAll('.stat-card').forEach((card, i) => {
-    setTimeout(() => card.style.opacity = '1', i * 100 + 100);
-  });
+  // Scroll daily counter
+  initScrollReveal();
 }
 
-// ============================================================
-// ADMIN PRODUCTS
-// ============================================================
-async function loadAdminProducts() {
-  const listEl = document.getElementById('adminProductList');
-  if (!listEl) return;
-  const products = await getProducts();
-
-  if (products.length === 0) {
-    listEl.innerHTML = '<div class="empty-state"><i class="fas fa-box-open"></i><p class="empty-state-title">Belum ada produk</p></div>';
-    return;
-  }
-
-  listEl.innerHTML = '';
-  products.forEach(prod => {
-    const item = document.createElement('div');
-    item.style.cssText = 'display:flex;align-items:center;gap:15px;padding:14px;border:1px solid var(--border);border-radius:12px;margin-bottom:10px;background:rgba(255,255,255,0.02);';
-    item.innerHTML = `
-      <div style="width:50px;height:50px;border-radius:10px;overflow:hidden;flex-shrink:0;background:rgba(124,58,237,0.1);">
-        ${prod.image ? `<img src="${escapeHtml(prod.image)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">` : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--primary);"><i class="fas fa-gem"></i></div>'}
-      </div>
-      <div style="flex:1;">
-        <p style="font-family:\'Rajdhani\',sans-serif;font-weight:700;font-size:0.95rem;">${escapeHtml(prod.nama)}</p>
-        <p style="font-size:0.78rem;color:var(--text-muted);font-family:\'Rajdhani\',sans-serif;">${(prod.hargaFull || []).length} opsi harga${prod.rentalEnabled ? ' + Rental' : ''}</p>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-secondary btn-sm" onclick="editProduct('${escapeHtml(prod.id)}')"><i class="fas fa-edit"></i></button>
-        <button class="btn btn-danger btn-sm" onclick="deleteProduct('${escapeHtml(prod.id)}')"><i class="fas fa-trash"></i></button>
-      </div>`;
-    listEl.appendChild(item);
-  });
-}
-
-function addHargaRow(containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  const rows = container.querySelectorAll('.harga-row');
-  if (rows.length >= 5) { showAlert('warning', 'Batas Maksimal', 'Maksimal 5 opsi harga!'); return; }
-  const row = document.createElement('div');
-  row.className = 'harga-row';
-  row.innerHTML = `
-    <div class="input-wrapper" style="flex:1;">
-      <i class="fas fa-tag input-icon"></i>
-      <input type="text" class="form-input" placeholder="Label" style="padding-left:42px;">
-    </div>
-    <div class="input-wrapper" style="flex:1;">
-      <i class="fas fa-dollar-sign input-icon"></i>
-      <input type="number" class="form-input" placeholder="Harga (Rp)" style="padding-left:42px;">
-    </div>
-    <button onclick="this.parentElement.remove()" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#ef4444;width:34px;height:34px;cursor:pointer;flex-shrink:0;">
-      <i class="fas fa-times"></i>
-    </button>`;
-  container.appendChild(row);
-}
-
-async function addProduct() {
-  const nama = sanitizeInput(document.getElementById('prodNama')?.value || '');
-  const image = document.getElementById('prodImage')?.value || '';
-  const desc = sanitizeInput(document.getElementById('prodDesc')?.value || '');
-  const fiturStr = sanitizeInput(document.getElementById('prodFitur')?.value || '');
-
-  if (!nama) { showAlert('warning', 'Nama Kosong', 'Masukan nama produk!'); return; }
-
-  const hargaFull = getHargaFromContainer('hargaFullKeyContainer');
-  if (hargaFull.length === 0) { showAlert('warning', 'Harga Diperlukan', 'Masukan minimal 1 opsi harga!'); return; }
-
-  const rentalEnabled = document.getElementById('rentalKeySwitch')?.checked || false;
-  const hargaRental = rentalEnabled ? getHargaFromContainer('hargaRentalContainer') : [];
-
-  const products = await getProducts();
-  const newProd = {
-    id: generateId('PROD'), nama, image, desc,
-    fitur: fiturStr ? fiturStr.split(',').map(f => f.trim()).filter(Boolean) : [],
-    hargaFull, hargaRental, rentalEnabled,
-    createdAt: new Date().toISOString()
+function getDefaultSettings() {
+  return {
+    welcomePopup: { enabled: true },
+    runningText: { enabled: false, text: '' },
+    resetKey: { enabled: true },
+    maintenance: { enabled: false, reason: '' },
+    customNotif: { enabled: false, icon: 'bell', text: '' },
+    totalSales: 0,
+    totalRevenue: 0,
+    todaySales: 0,
+    lastSaleReset: new Date().toDateString()
   };
-  products.push(newProd);
-  await setProducts(products);
-
-  // Reset form
-  ['prodNama', 'prodImage', 'prodDesc', 'prodFitur'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  resetHargaContainer('hargaFullKeyContainer');
-  resetHargaContainer('hargaRentalContainer');
-
-  await loadAdminProducts();
-  showAlert('success', 'Produk Ditambahkan!', `Produk "${escapeHtml(nama)}" berhasil ditambahkan.`);
 }
 
-function getHargaFromContainer(containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return [];
-  const rows = container.querySelectorAll('.harga-row');
-  const result = [];
-  rows.forEach(row => {
-    const inputs = row.querySelectorAll('input');
-    if (inputs.length >= 2) {
-      const label = sanitizeInput(inputs[0].value);
-      const harga = parseInt(inputs[1].value) || 0;
-      if (label && harga > 0) result.push({ label, harga });
+function updateAdminStats() {
+  const approvedTx = adminData.transactions.filter(t => t.status === 'approved');
+  const totalBuyers = new Set(approvedTx.map(t => t.userId)).size;
+  const totalRevenue = approvedTx.reduce((sum, t) => sum + (t.total || 0), 0);
+
+  const today = new Date().toDateString();
+  const todayTx = approvedTx.filter(t => new Date(t.createdAt).toDateString() === today);
+
+  document.getElementById('stat-buyers').textContent = totalBuyers;
+  document.getElementById('stat-revenue').textContent = formatCurrency(totalRevenue);
+  document.getElementById('stat-today').textContent = todayTx.length;
+}
+
+function loadAdminSettings() {
+  const s = adminData.settings;
+
+  setToggle('toggle-popup', s.welcomePopup?.enabled !== false);
+  setToggle('toggle-running', s.runningText?.enabled === true);
+  setToggle('toggle-reset', s.resetKey?.enabled !== false);
+  setToggle('toggle-maintenance', s.maintenance?.enabled === true);
+  setToggle('toggle-custom-notif', s.customNotif?.enabled === true);
+
+  const rtInput = document.getElementById('running-text-input');
+  if (rtInput) rtInput.value = s.runningText?.text || '';
+
+  const mReasonInput = document.getElementById('maintenance-reason-input');
+  if (mReasonInput) mReasonInput.value = s.maintenance?.reason || '';
+
+  const notifTextInput = document.getElementById('custom-notif-text-input');
+  if (notifTextInput) notifTextInput.value = s.customNotif?.text || '';
+
+  const notifIconInput = document.getElementById('custom-notif-icon-input');
+  if (notifIconInput) notifIconInput.value = s.customNotif?.icon || 'bell';
+}
+
+function setToggle(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.checked = value;
+}
+
+function getToggle(id) {
+  const el = document.getElementById(id);
+  return el ? el.checked : false;
+}
+
+async function saveSettings() {
+  const settings = adminData.settings;
+
+  settings.welcomePopup = { enabled: getToggle('toggle-popup') };
+  settings.runningText = {
+    enabled: getToggle('toggle-running'),
+    text: sanitizeInput(document.getElementById('running-text-input')?.value || '')
+  };
+  settings.resetKey = { enabled: getToggle('toggle-reset') };
+  settings.maintenance = {
+    enabled: getToggle('toggle-maintenance'),
+    reason: sanitizeInput(document.getElementById('maintenance-reason-input')?.value || '')
+  };
+  settings.customNotif = {
+    enabled: getToggle('toggle-custom-notif'),
+    icon: sanitizeInput(document.getElementById('custom-notif-icon-input')?.value || 'bell'),
+    text: sanitizeInput(document.getElementById('custom-notif-text-input')?.value || '')
+  };
+
+  const btn = document.getElementById('save-settings-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
+
+  const result = await writeBin(BINS.settings, settings);
+  if (result) {
+    notify('success', 'Pengaturan Tersimpan', 'Semua pengaturan berhasil disimpan');
+  } else {
+    notify('error', 'Gagal Menyimpan', 'Terjadi kesalahan saat menyimpan');
+  }
+
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Simpan Pengaturan'; }
+}
+
+// ============ ADMIN: ADD PRODUCT ============
+async function addProduct() {
+  const name = sanitizeInput(document.getElementById('prod-name').value.trim());
+  const image = document.getElementById('prod-image').value.trim();
+  const desc = sanitizeInput(document.getElementById('prod-desc').value.trim());
+  const features = sanitizeInput(document.getElementById('prod-features').value.trim()).split('\n').filter(f => f);
+  const hasRental = getToggle('toggle-rental');
+
+  if (!name) { notify('warning', 'Nama Kosong', 'Nama produk wajib diisi'); return; }
+
+  // Collect full plans
+  const fullPlans = [];
+  for (let i = 1; i <= 5; i++) {
+    const label = document.getElementById(`full-plan-label-${i}`)?.value.trim();
+    const price = document.getElementById(`full-plan-price-${i}`)?.value;
+    if (label && price) fullPlans.push({ label: sanitizeInput(label), price: parseInt(price) || 0 });
+  }
+
+  // Collect rental plans
+  const rentalPlans = [];
+  if (hasRental) {
+    for (let i = 1; i <= 5; i++) {
+      const label = document.getElementById(`rental-plan-label-${i}`)?.value.trim();
+      const price = document.getElementById(`rental-plan-price-${i}`)?.value;
+      if (label && price) rentalPlans.push({ label: sanitizeInput(label), price: parseInt(price) || 0 });
     }
-  });
-  return result;
+  }
+
+  const btn = document.getElementById('add-product-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...'; }
+
+  try {
+    if (editingProductId) {
+      const idx = adminData.products.findIndex(p => p.id === editingProductId);
+      if (idx !== -1) {
+        adminData.products[idx] = { ...adminData.products[idx], name, image, desc, features, hasRental, fullPlans, rentalPlans };
+      }
+      editingProductId = null;
+    } else {
+      adminData.products.push({
+        id: 'PROD_' + Date.now(),
+        name, image, desc, features, hasRental, fullPlans, rentalPlans,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    await writeBin(BINS.products, { products: adminData.products });
+    notify('success', 'Produk Tersimpan', `Produk "${name}" berhasil disimpan`);
+    renderAdminProducts();
+    clearProductForm();
+  } catch (err) {
+    notify('error', 'Gagal', 'Terjadi kesalahan');
+  }
+
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus"></i> Tambah Produk'; }
 }
 
-function resetHargaContainer(containerId) {
-  const container = document.getElementById(containerId);
+function clearProductForm() {
+  ['prod-name','prod-image','prod-desc','prod-features'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  for (let i = 1; i <= 5; i++) {
+    ['full-plan-label-','full-plan-price-','rental-plan-label-','rental-plan-price-'].forEach(prefix => {
+      const el = document.getElementById(prefix + i);
+      if (el) el.value = '';
+    });
+  }
+  editingProductId = null;
+  const btn = document.getElementById('add-product-btn');
+  if (btn) btn.innerHTML = '<i class="fas fa-plus"></i> Tambah Produk';
+}
+
+function renderAdminProducts() {
+  const container = document.getElementById('admin-products-list');
   if (!container) return;
-  const rows = container.querySelectorAll('.harga-row');
-  rows.forEach((row, i) => {
-    if (i === 0) { row.querySelectorAll('input').forEach(inp => inp.value = ''); }
-    else row.remove();
-  });
-}
 
-async function deleteProduct(prodId) {
-  const result = await Swal.fire({
-    title: 'Hapus Produk?', text: 'Produk akan dihapus permanen!',
-    icon: 'warning', showCancelButton: true,
-    confirmButtonText: 'Ya, Hapus!', cancelButtonText: 'Batal'
-  });
-  if (!result.isConfirmed) return;
-  let products = await getProducts();
-  products = products.filter(p => p.id !== prodId);
-  await setProducts(products);
-  await loadAdminProducts();
-  showAlert('success', 'Dihapus', 'Produk berhasil dihapus.');
-}
-
-async function editProduct(prodId) {
-  const products = await getProducts();
-  const prod = products.find(p => p.id === prodId);
-  if (!prod) return;
-
-  const { value: formValues } = await Swal.fire({
-    title: 'Edit Produk',
-    html: `
-      <div style="text-align:left;">
-        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:5px;font-family:\'Rajdhani\',sans-serif;">NAMA PRODUK</p>
-        <input id="editNama" class="swal2-input" value="${escapeHtml(prod.nama)}" placeholder="Nama produk" style="font-family:\'Exo 2\',sans-serif;">
-        <p style="font-size:0.8rem;color:var(--text-muted);margin:10px 0 5px;font-family:\'Rajdhani\',sans-serif;">URL GAMBAR</p>
-        <input id="editImage" class="swal2-input" value="${escapeHtml(prod.image || '')}" placeholder="URL gambar" style="font-family:\'Exo 2\',sans-serif;">
-        <p style="font-size:0.8rem;color:var(--text-muted);margin:10px 0 5px;font-family:\'Rajdhani\',sans-serif;">DESKRIPSI</p>
-        <input id="editDesc" class="swal2-input" value="${escapeHtml(prod.desc || '')}" placeholder="Deskripsi" style="font-family:\'Exo 2\',sans-serif;">
-        <p style="font-size:0.8rem;color:var(--text-muted);margin:10px 0 5px;font-family:\'Rajdhani\',sans-serif;">FITUR (pisah koma)</p>
-        <input id="editFitur" class="swal2-input" value="${escapeHtml((prod.fitur || []).join(', '))}" placeholder="Fitur" style="font-family:\'Exo 2\',sans-serif;">
-      </div>`,
-    focusConfirm: false,
-    showCancelButton: true,
-    confirmButtonText: 'Simpan', cancelButtonText: 'Batal',
-    preConfirm: () => ({
-      nama: sanitizeInput(document.getElementById('editNama').value),
-      image: document.getElementById('editImage').value,
-      desc: sanitizeInput(document.getElementById('editDesc').value),
-      fitur: document.getElementById('editFitur').value.split(',').map(f => sanitizeInput(f.trim())).filter(Boolean)
-    })
-  });
-
-  if (formValues) {
-    const idx = products.findIndex(p => p.id === prodId);
-    if (idx !== -1) {
-      products[idx] = { ...products[idx], ...formValues };
-      await setProducts(products);
-      await loadAdminProducts();
-      showAlert('success', 'Disimpan', 'Produk berhasil diupdate!');
-    }
-  }
-}
-
-// ============================================================
-// ADMIN TRANSACTIONS
-// ============================================================
-async function loadAdminTransactions() {
-  const tbody = document.getElementById('adminTrxBody');
-  if (!tbody) return;
-  const transactions = await getTransactions();
-  const sorted = [...transactions].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-  if (sorted.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted);">Belum ada transaksi</td></tr>';
+  if (!adminData.products.length) {
+    container.innerHTML = '<div style="color:var(--gray-400);font-family:var(--font-body);padding:20px;">Belum ada produk.</div>';
     return;
   }
 
-  tbody.innerHTML = '';
-  sorted.forEach(trx => {
-    const statusClass = `status-${trx.status}`;
-    const statusLabel = trx.status === 'waiting' ? 'Menunggu' : trx.status === 'approved' ? 'Approved' : 'Rejected';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-family:'Courier New',monospace;font-size:0.78rem;color:var(--primary-light);">${escapeHtml(trx.id.substr(0, 14))}...</td>
-      <td><b>${escapeHtml(trx.username)}</b></td>
-      <td>${escapeHtml(trx.prodNama)}</td>
-      <td style="font-size:0.8rem;">${escapeHtml(trx.planType)}<br><span style="color:var(--text-muted);">${escapeHtml(trx.planLabel)}</span></td>
-      <td style="color:var(--primary-light);font-weight:700;">${formatRupiah(trx.totalPrice)}</td>
-      <td>${escapeHtml(trx.waNumber || '-')}</td>
-      <td style="font-size:0.78rem;">${formatDate(trx.createdAt)}</td>
-      <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-      <td>
-        ${trx.status === 'waiting' ? `
-          <div style="display:flex;gap:5px;">
-            <button class="btn btn-success btn-sm" onclick="adminApprove('${escapeHtml(trx.id)}')"><i class="fas fa-check"></i></button>
-            <button class="btn btn-danger btn-sm" onclick="adminReject('${escapeHtml(trx.id)}')"><i class="fas fa-times"></i></button>
-          </div>` : `<span style="color:var(--text-muted);font-size:0.8rem;">${trx.status === 'approved' ? '✅' : '❌'}</span>`}
-      </td>`;
-    tbody.appendChild(tr);
-  });
-}
-
-async function adminApprove(trxId) {
-  // Show key input form
-  const transactions = await getTransactions();
-  const trx = transactions.find(t => t.id === trxId);
-  if (!trx) return;
-
-  const body = document.getElementById('approveModalBody');
-  if (!body) return;
-
-  body.innerHTML = `
-    <div style="margin-bottom:15px;padding:12px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid var(--border);">
-      <p style="font-family:'Rajdhani',sans-serif;font-size:0.85rem;color:var(--text-secondary);"><b>User:</b> ${escapeHtml(trx.username)} | <b>Produk:</b> ${escapeHtml(trx.prodNama)}</p>
-    </div>
-    <p style="font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--text-secondary);margin-bottom:12px;">Masukan key/kode untuk dikirim ke user (min 1, maks 5):</p>
-    <div id="keyInputsContainer">
-      <div class="key-input-row">
-        <div class="input-wrapper" style="flex:1;"><i class="fas fa-key input-icon"></i><input type="text" class="form-input key-input" placeholder="Masukan key 1..." style="padding-left:42px;"></div>
+  container.innerHTML = adminData.products.map(p => `
+    <div class="product-list-item">
+      ${p.image ? `<img src="${sanitizeInput(p.image)}" class="product-list-thumb" onerror="this.src=''"  alt="">` : '<div class="product-list-thumb img-placeholder" style="display:flex;align-items:center;justify-content:center;"><i class="fas fa-gamepad"></i></div>'}
+      <div class="product-list-info">
+        <div class="product-list-name">${sanitizeInput(p.name)}</div>
+        <div class="product-list-desc">${p.fullPlans?.length || 0} plan full, ${p.hasRental ? (p.rentalPlans?.length || 0) : 0} plan rental</div>
+      </div>
+      <div class="product-list-actions">
+        <button class="btn-edit" onclick="editProduct('${p.id}')"><i class="fas fa-edit"></i> Edit</button>
+        <button class="btn-danger" style="padding:6px 12px;font-size:12px;" onclick="deleteProduct('${p.id}')"><i class="fas fa-trash"></i></button>
       </div>
     </div>
-    <button class="btn btn-secondary btn-sm" style="margin:10px 0;" onclick="addKeyInput()"><i class="fas fa-plus"></i> Tambah Key</button>
-    <button class="btn btn-success" onclick="submitApprove('${escapeHtml(trxId)}')">
-      <i class="fas fa-paper-plane"></i> Kirim & Approve
-    </button>`;
-  openModal('approveModal');
+  `).join('');
 }
 
-function addKeyInput() {
-  const c = document.getElementById('keyInputsContainer');
-  if (!c) return;
-  if (c.querySelectorAll('.key-input-row').length >= 5) { showAlert('warning', 'Maks 5 key', ''); return; }
-  const row = document.createElement('div');
-  row.className = 'key-input-row';
-  const count = c.querySelectorAll('.key-input-row').length + 1;
-  row.innerHTML = `
-    <div class="input-wrapper" style="flex:1;"><i class="fas fa-key input-icon"></i><input type="text" class="form-input key-input" placeholder="Masukan key ${count}..." style="padding-left:42px;"></div>
-    <button onclick="this.parentElement.remove()" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);border-radius:8px;color:#ef4444;width:34px;height:34px;cursor:pointer;flex-shrink:0;"><i class="fas fa-times"></i></button>`;
-  c.appendChild(row);
-}
+function editProduct(productId) {
+  const p = adminData.products.find(x => x.id === productId);
+  if (!p) return;
+  editingProductId = productId;
 
-async function submitApprove(trxId) {
-  const inputs = document.querySelectorAll('.key-input');
-  const keys = Array.from(inputs).map(i => sanitizeInput(i.value)).filter(Boolean);
-  if (keys.length === 0) { showAlert('warning', 'Key Kosong', 'Masukan minimal 1 key!'); return; }
+  document.getElementById('prod-name').value = p.name || '';
+  document.getElementById('prod-image').value = p.image || '';
+  document.getElementById('prod-desc').value = p.desc || '';
+  document.getElementById('prod-features').value = (p.features || []).join('\n');
+  setToggle('toggle-rental', p.hasRental);
 
-  const transactions = await getTransactions();
-  const idx = transactions.findIndex(t => t.id === trxId);
-  if (idx === -1) return;
-
-  transactions[idx].status = 'approved';
-  transactions[idx].keys = keys;
-  transactions[idx].approvedAt = new Date().toISOString();
-  await setTransactions(transactions);
-
-  // Update stats
-  const settings = await getSettings();
-  settings.totalPembeli = (settings.totalPembeli || 0) + 1;
-  await setSettings(settings);
-
-  closeModal('approveModal');
-  await loadAdminTransactions();
-  await loadAdminStats();
-  showAlert('success', 'Approved! ✅', `Transaksi berhasil di-approve dan ${keys.length} key terkirim ke user.`);
-}
-
-async function adminReject(trxId) {
-  const result = await Swal.fire({
-    title: 'Reject Transaksi?', text: 'Saldo user akan dikembalikan.',
-    icon: 'warning', showCancelButton: true,
-    confirmButtonText: 'Ya, Reject', cancelButtonText: 'Batal'
+  (p.fullPlans || []).forEach((plan, i) => {
+    const labelEl = document.getElementById(`full-plan-label-${i+1}`);
+    const priceEl = document.getElementById(`full-plan-price-${i+1}`);
+    if (labelEl) labelEl.value = plan.label;
+    if (priceEl) priceEl.value = plan.price;
   });
-  if (!result.isConfirmed) return;
 
-  const transactions = await getTransactions();
-  const idx = transactions.findIndex(t => t.id === trxId);
-  if (idx === -1) return;
-
-  const trx = transactions[idx];
-  transactions[idx].status = 'rejected';
-  transactions[idx].rejectedAt = new Date().toISOString();
-  await setTransactions(transactions);
-
-  // Refund credit
-  const users = await getUsers();
-  const uIdx = users.findIndex(u => u.username.toLowerCase() === trx.username.toLowerCase());
-  if (uIdx !== -1) {
-    users[uIdx].credit = (users[uIdx].credit || 0) + trx.totalPrice;
-    await setUsers(users);
-  }
-
-  await loadAdminTransactions();
-  showAlert('success', 'Rejected', 'Transaksi di-reject dan saldo user dikembalikan.');
-}
-
-// ============================================================
-// ADMIN PROMO
-// ============================================================
-async function loadAdminPromos() {
-  const listEl = document.getElementById('adminPromoList');
-  if (!listEl) return;
-  const promos = await getPromo();
-  if (promos.length === 0) {
-    listEl.innerHTML = '<div class="empty-state"><i class="fas fa-tag"></i><p class="empty-state-title">Belum ada kode promo</p></div>';
-    return;
-  }
-  listEl.innerHTML = '';
-  promos.forEach(p => {
-    const item = document.createElement('div');
-    item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:14px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;background:rgba(255,255,255,0.02);';
-    item.innerHTML = `
-      <div>
-        <p style="font-family:'Orbitron',sans-serif;font-size:0.9rem;color:var(--primary-light);">${escapeHtml(p.code)}</p>
-        <p style="font-family:'Rajdhani',sans-serif;font-size:0.82rem;color:var(--text-muted);">Diskon: ${p.percent}% | Terpakai: ${p.usedCount || 0}/${p.maxUse}</p>
-      </div>
-      <button class="btn btn-danger btn-sm" onclick="deletePromo('${escapeHtml(p.code)}')"><i class="fas fa-trash"></i></button>`;
-    listEl.appendChild(item);
+  (p.rentalPlans || []).forEach((plan, i) => {
+    const labelEl = document.getElementById(`rental-plan-label-${i+1}`);
+    const priceEl = document.getElementById(`rental-plan-price-${i+1}`);
+    if (labelEl) labelEl.value = plan.label;
+    if (priceEl) priceEl.value = plan.price;
   });
+
+  const btn = document.getElementById('add-product-btn');
+  if (btn) btn.innerHTML = '<i class="fas fa-save"></i> Update Produk';
+
+  // Scroll to form
+  document.getElementById('product-form-section')?.scrollIntoView({ behavior: 'smooth' });
 }
 
-async function addPromoCode() {
-  const code = sanitizeInput(document.getElementById('promoCode')?.value || '').toUpperCase();
-  const percent = parseInt(document.getElementById('promoPercent')?.value || 0);
-  const maxUse = parseInt(document.getElementById('promoMaxUse')?.value || 0);
+async function deleteProduct(productId) {
+  if (!confirm('Hapus produk ini?')) return;
+  adminData.products = adminData.products.filter(p => p.id !== productId);
+  await writeBin(BINS.products, { products: adminData.products });
+  notify('success', 'Produk Dihapus', 'Produk berhasil dihapus');
+  renderAdminProducts();
+}
 
-  if (!code) { showAlert('warning', 'Kode Kosong', 'Masukan kode promo!'); return; }
-  if (!percent || percent < 1 || percent > 100) { showAlert('warning', 'Persen Invalid', 'Persen diskon antara 1-100!'); return; }
-  if (!maxUse || maxUse < 1) { showAlert('warning', 'Maks. Invalid', 'Masukan batas penggunaan!'); return; }
+// ============ ADMIN: PROMO ============
+async function addPromo() {
+  const code = document.getElementById('promo-code-input').value.trim().toUpperCase();
+  const percent = parseInt(document.getElementById('promo-percent-input').value);
+  const maxUsage = parseInt(document.getElementById('promo-max-input').value) || 999;
 
-  const promos = await getPromo();
-  if (promos.find(p => p.code === code)) { showAlert('error', 'Kode Duplikat', 'Kode promo sudah ada!'); return; }
+  if (!code || !percent) { notify('warning', 'Data Kurang', 'Isi semua field promo'); return; }
+  if (percent < 1 || percent > 90) { notify('warning', 'Persen Invalid', 'Diskon 1-90%'); return; }
 
-  promos.push({ code, percent, maxUse, usedCount: 0, usedBy: [], createdAt: new Date().toISOString() });
-  await setPromo(promos);
+  const existing = adminData.promoCodes.find(p => p.code === code);
+  if (existing) { notify('warning', 'Kode Sudah Ada', 'Kode promo sudah terdaftar'); return; }
 
-  ['promoCode', 'promoPercent', 'promoMaxUse'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  await loadAdminPromos();
-  showAlert('success', 'Promo Ditambahkan!', `Kode ${code} berhasil ditambahkan.`);
+  const btn = document.getElementById('add-promo-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
+  adminData.promoCodes.push({
+    code,
+    percent,
+    maxUsage,
+    usedCount: 0,
+    active: true,
+    createdAt: new Date().toISOString()
+  });
+
+  await writeBin(BINS.promoCodes, { promos: adminData.promoCodes });
+  notify('success', 'Promo Ditambahkan', `Kode "${code}" dengan diskon ${percent}%`);
+  renderAdminPromos();
+
+  document.getElementById('promo-code-input').value = '';
+  document.getElementById('promo-percent-input').value = '';
+  document.getElementById('promo-max-input').value = '';
+
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus"></i> Tambah Promo'; }
 }
 
 async function deletePromo(code) {
-  const result = await Swal.fire({ title: 'Hapus Promo?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Hapus' });
-  if (!result.isConfirmed) return;
-  let promos = await getPromo();
-  promos = promos.filter(p => p.code !== code);
-  await setPromo(promos);
-  await loadAdminPromos();
-  showAlert('success', 'Dihapus', 'Kode promo dihapus.');
+  adminData.promoCodes = adminData.promoCodes.filter(p => p.code !== code);
+  await writeBin(BINS.promoCodes, { promos: adminData.promoCodes });
+  notify('success', 'Promo Dihapus', '');
+  renderAdminPromos();
 }
 
-// ============================================================
-// ADMIN SALDO
-// ============================================================
-async function loadAdminUsers() {
-  const listEl = document.getElementById('userListAdmin');
-  if (!listEl) return;
-  const users = await getUsers();
-  if (users.length === 0) {
-    listEl.innerHTML = '<div class="empty-state"><i class="fas fa-users"></i><p class="empty-state-title">Belum ada user</p></div>';
+function renderAdminPromos() {
+  const container = document.getElementById('promo-list');
+  if (!container) return;
+
+  if (!adminData.promoCodes.length) {
+    container.innerHTML = '<div style="color:var(--gray-400);font-size:13px;padding:15px;">Belum ada promo.</div>';
     return;
   }
-  listEl.innerHTML = '';
-  users.forEach(u => {
-    const item = document.createElement('div');
-    item.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:rgba(255,255,255,0.02);';
-    item.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:0.9rem;color:white;font-weight:700;font-family:'Orbitron',sans-serif;">${escapeHtml(u.username.charAt(0).toUpperCase())}</div>
+
+  container.innerHTML = adminData.promoCodes.map(p => `
+    <div class="promo-item">
+      <span class="promo-code">${p.code}</span>
+      <span class="promo-info">Diskon ${p.percent}% | ${p.usedCount || 0}/${p.maxUsage} pakai</span>
+      <button class="btn-danger" style="padding:5px 10px;font-size:11px;" onclick="deletePromo('${p.code}')"><i class="fas fa-trash"></i></button>
+    </div>
+  `).join('');
+}
+
+// ============ ADMIN: TOP UP SALDO ============
+async function addSaldo() {
+  const username = sanitizeInput(document.getElementById('topup-username').value.trim());
+  const amount = parseInt(document.getElementById('topup-amount').value);
+
+  if (!username || !amount) { notify('warning', 'Data Kurang', 'Isi semua field'); return; }
+  if (amount <= 0) { notify('warning', 'Nominal Invalid', 'Masukan nominal valid'); return; }
+
+  const btn = document.getElementById('topup-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...'; }
+
+  try {
+    const usersData = await readBin(BINS.users);
+    const users = usersData?.users || [];
+    const idx = users.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
+
+    if (idx === -1) {
+      notify('error', 'User Tidak Ditemukan', `Username "${username}" tidak ada di database`);
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Transfer Saldo'; }
+      return;
+    }
+
+    users[idx].credit = (users[idx].credit || 0) + amount;
+    await writeBin(BINS.users, { users });
+
+    notify('success', 'Saldo Terkirim!', `Rp ${amount.toLocaleString('id-ID')} → ${username} (Total: Rp ${users[idx].credit.toLocaleString('id-ID')})`);
+    document.getElementById('topup-username').value = '';
+    document.getElementById('topup-amount').value = '';
+
+  } catch (err) {
+    notify('error', 'Error', 'Gagal kirim saldo');
+  }
+
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> Transfer Saldo'; }
+}
+
+// ============ ADMIN: LOGS & APPROVE ============
+function renderAdminLogs() {
+  const container = document.getElementById('admin-logs-list');
+  if (!container) return;
+
+  const allTx = adminData.transactions.slice().reverse();
+
+  if (!allTx.length) {
+    container.innerHTML = '<div style="color:var(--gray-400);font-family:var(--font-body);padding:30px;text-align:center;">Belum ada transaksi.</div>';
+    return;
+  }
+
+  container.innerHTML = allTx.map(tx => `
+    <div class="log-item ${tx.status}" id="log-${tx.id}">
+      <div class="log-header">
         <div>
-          <p style="font-family:'Rajdhani',sans-serif;font-weight:700;">${escapeHtml(u.username)} ${u.isAdmin ? '<span style="font-size:0.7rem;background:rgba(124,58,237,0.2);border:1px solid var(--border-glow);border-radius:4px;padding:1px 6px;color:var(--primary-light);">ADMIN</span>' : ''}</p>
-          <p style="font-size:0.78rem;color:var(--text-muted);font-family:'Rajdhani',sans-serif;">Credit: ${formatRupiah(u.credit || 0)}</p>
+          <div class="log-product">${sanitizeInput(tx.productName)}</div>
+          <div class="log-id">${sanitizeInput(tx.id)}</div>
         </div>
-      </div>`;
-    listEl.appendChild(item);
-  });
+        <div class="log-date">${new Date(tx.createdAt).toLocaleString('id-ID')}</div>
+      </div>
+      <div class="log-details">
+        <div class="log-detail-item">
+          <div class="log-detail-label">User</div>
+          <div class="log-detail-value">${sanitizeInput(tx.username)}</div>
+        </div>
+        <div class="log-detail-item">
+          <div class="log-detail-label">Paket</div>
+          <div class="log-detail-value">${sanitizeInput(tx.plan)} (${tx.planType === 'rental' ? 'Rental' : 'Full'}) x${tx.quantity}</div>
+        </div>
+        <div class="log-detail-item">
+          <div class="log-detail-label">Total</div>
+          <div class="log-detail-value">Rp ${(tx.total || 0).toLocaleString('id-ID')}</div>
+        </div>
+        <div class="log-detail-item">
+          <div class="log-detail-label">WhatsApp</div>
+          <div class="log-detail-value">${sanitizeInput(tx.whatsapp || '-')}</div>
+        </div>
+        <div class="log-detail-item">
+          <div class="log-detail-label">Promo</div>
+          <div class="log-detail-value">${sanitizeInput(tx.promoCode || '-')} ${tx.discount > 0 ? `(-Rp ${tx.discount.toLocaleString()})` : ''}</div>
+        </div>
+        <div class="log-detail-item">
+          <div class="log-detail-label">Status</div>
+          <div class="log-detail-value trans-status status-${tx.status}">${tx.status.toUpperCase()}</div>
+        </div>
+      </div>
+      ${tx.status === 'waiting' ? `
+        <div class="log-actions">
+          <button class="btn-approve" onclick="approveTx('${tx.id}')"><i class="fas fa-check"></i> Approve</button>
+          <button class="btn-reject" onclick="rejectTx('${tx.id}')"><i class="fas fa-times"></i> Reject</button>
+        </div>
+      ` : tx.status === 'approved' ? `
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+          <span style="color:var(--accent-green);font-size:13px;"><i class="fas fa-check-circle"></i> Approved</span>
+          ${tx.keys?.length ? `<span style="color:var(--gray-400);font-size:12px;">Keys terkirim: ${tx.keys.length}</span>` : ''}
+        </div>
+      ` : `<div style="color:#ff5555;font-size:13px;margin-top:8px;"><i class="fas fa-times-circle"></i> Rejected</div>`}
+      <div class="key-input-area" id="key-area-${tx.id}">
+        <div style="font-family:var(--font-body);font-size:13px;color:var(--purple-200);margin-bottom:10px;">Masukan key untuk dikirim ke user:</div>
+        ${[1,2,3,4,5].map(n => `<input type="text" class="form-input" id="key-${tx.id}-${n}" placeholder="Key ${n} (opsional)" style="margin-bottom:8px;">`).join('')}
+        <button class="btn-approve" style="width:100%;margin-top:5px;" onclick="sendKeys('${tx.id}')"><i class="fas fa-paper-plane"></i> Kirim Key & Approve</button>
+      </div>
+    </div>
+  `).join('');
 }
 
-async function transferSaldo() {
-  const username = sanitizeInput(document.getElementById('saldoUsername')?.value || '');
-  const amount = parseInt(document.getElementById('saldoAmount')?.value || 0);
-
-  if (!username) { showAlert('warning', 'Username Kosong', 'Masukan username user!'); return; }
-  if (!amount || amount < 1) { showAlert('warning', 'Jumlah Invalid', 'Masukan jumlah credit yang valid!'); return; }
-
-  const users = await getUsers();
-  const idx = users.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
-  if (idx === -1) { showAlert('error', 'User Tidak Ditemukan', `User "${escapeHtml(username)}" tidak ada di database!`); return; }
-
-  users[idx].credit = (users[idx].credit || 0) + amount;
-  await setUsers(users);
-  await loadAdminUsers();
-
-  document.getElementById('saldoUsername').value = '';
-  document.getElementById('saldoAmount').value = '';
-  showAlert('success', 'Saldo Terkirim! 💰', `${formatRupiah(amount)} berhasil ditransfer ke <b>${escapeHtml(username)}</b>.<br>Saldo baru: <b>${formatRupiah(users[idx].credit)}</b>`);
+function approveTx(txId) {
+  const keyArea = document.getElementById(`key-area-${txId}`);
+  if (keyArea) keyArea.classList.toggle('show');
 }
 
-// ============================================================
-// ADMIN SETTINGS
-// ============================================================
-async function loadAdminSettings() {
-  const settings = await getSettings();
+async function sendKeys(txId) {
+  const keys = [];
+  for (let i = 1; i <= 5; i++) {
+    const val = document.getElementById(`key-${txId}-${i}`)?.value.trim();
+    if (val) keys.push(sanitizeInput(val));
+  }
 
-  const runToggle = document.getElementById('runningTextToggle');
-  const runInput = document.getElementById('runningTextInput');
-  const wpToggle = document.getElementById('welcomePopupToggle');
-  const n2Toggle = document.getElementById('notif2Toggle');
-  const n2Icon = document.getElementById('notif2Icon');
-  const n2Text = document.getElementById('notif2TextInput');
-  const rkToggle = document.getElementById('resetKeyToggle');
-  const maintToggle = document.getElementById('maintenanceToggle');
-  const maintReason = document.getElementById('maintenanceReason');
+  const btn = document.querySelector(`#key-area-${txId} .btn-approve`);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
 
-  if (runToggle) runToggle.checked = settings.runningText || false;
-  if (runInput) runInput.value = settings.runningTextContent || '';
-  if (wpToggle) wpToggle.checked = settings.welcomePopup !== false;
-  if (n2Toggle) n2Toggle.checked = settings.notif2 || false;
-  if (n2Icon) n2Icon.value = settings.notif2Icon || 'fas fa-info-circle';
-  if (n2Text) n2Text.value = settings.notif2Text || '';
-  if (rkToggle) rkToggle.checked = settings.resetKey !== false;
-  if (maintToggle) maintToggle.checked = settings.maintenance || false;
-  if (maintReason) maintReason.value = settings.maintenanceReason || '';
+  try {
+    const txData = await readBin(BINS.transactions);
+    const transactions = txData?.transactions || [];
+    const idx = transactions.findIndex(t => t.id === txId);
+    if (idx !== -1) {
+      transactions[idx].status = 'approved';
+      transactions[idx].keys = keys;
+      transactions[idx].approvedAt = new Date().toISOString();
+      await writeBin(BINS.transactions, { transactions });
+      adminData.transactions = transactions;
+      notify('success', 'Transaksi Disetujui', `Keys berhasil dikirim ke user`);
+      renderAdminLogs();
+      updateAdminStats();
+    }
+  } catch (err) {
+    notify('error', 'Error', 'Gagal approve');
+  }
 }
 
-async function saveSettingToggle(key, value) {
-  const settings = await getSettings();
-  settings[key] = value;
-  await setSettings(settings);
-  const labels = { runningText: 'Running Text', welcomePopup: 'Welcome Popup', notif2: 'Notifikasi ke-2', resetKey: 'Reset Key System', maintenance: 'Maintenance Mode' };
-  showToast(`${labels[key] || key}: ${value ? 'Aktif' : 'Nonaktif'}`, value ? 'success' : 'warning');
+async function rejectTx(txId) {
+  if (!confirm('Yakin ingin menolak transaksi ini? Saldo akan dikembalikan.')) return;
+
+  try {
+    const [txData, usersData] = await Promise.all([readBin(BINS.transactions), readBin(BINS.users)]);
+    const transactions = txData?.transactions || [];
+    const users = usersData?.users || [];
+    const idx = transactions.findIndex(t => t.id === txId);
+
+    if (idx !== -1) {
+      const tx = transactions[idx];
+      transactions[idx].status = 'rejected';
+      transactions[idx].rejectedAt = new Date().toISOString();
+
+      // Refund credit
+      const userIdx = users.findIndex(u => u.id === tx.userId);
+      if (userIdx !== -1) users[userIdx].credit = (users[userIdx].credit || 0) + (tx.total || 0);
+
+      await Promise.all([
+        writeBin(BINS.transactions, { transactions }),
+        writeBin(BINS.users, { users })
+      ]);
+
+      adminData.transactions = transactions;
+      notify('success', 'Transaksi Ditolak', 'Saldo user dikembalikan otomatis');
+      renderAdminLogs();
+    }
+  } catch (err) {
+    notify('error', 'Error', 'Gagal reject transaksi');
+  }
 }
 
-async function saveRunningText() {
-  const text = sanitizeInput(document.getElementById('runningTextInput')?.value || '');
-  if (!text) { showAlert('warning', 'Teks Kosong', 'Masukan teks berjalan!'); return; }
-  const settings = await getSettings();
-  settings.runningTextContent = text;
-  await setSettings(settings);
-  showAlert('success', 'Disimpan', 'Teks berjalan berhasil disimpan!');
+// ============ ADMIN TAB NAVIGATION ============
+function switchAdminTab(tabName) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById(`tab-${tabName}`)?.classList.add('active');
+  document.getElementById(`content-${tabName}`)?.classList.add('active');
 }
 
-async function saveNotif2() {
-  const icon = document.getElementById('notif2Icon')?.value || 'fas fa-info-circle';
-  const text = sanitizeInput(document.getElementById('notif2TextInput')?.value || '');
-  if (!text) { showAlert('warning', 'Teks Kosong', 'Masukan teks notifikasi!'); return; }
-  const settings = await getSettings();
-  settings.notif2Icon = icon;
-  settings.notif2Text = text;
-  await setSettings(settings);
-  showAlert('success', 'Disimpan', 'Notifikasi ke-2 berhasil disimpan!');
-}
-
-async function saveMaintenanceMode(isOn) {
-  const settings = await getSettings();
-  settings.maintenance = isOn;
-  await setSettings(settings);
-  showToast(`Maintenance Mode: ${isOn ? 'AKTIF ⚠️' : 'Nonaktif'}`, isOn ? 'warning' : 'success');
-}
-
-async function saveMaintenanceText() {
-  const text = sanitizeInput(document.getElementById('maintenanceReason')?.value || '');
-  const settings = await getSettings();
-  settings.maintenanceReason = text;
-  await setSettings(settings);
-  showAlert('success', 'Disimpan', 'Alasan maintenance berhasil disimpan!');
-}
-
-// ============================================================
-// RENTAL SWITCH IN ADMIN
-// ============================================================
+// ============ INIT ON PAGE LOAD ============
 document.addEventListener('DOMContentLoaded', () => {
-  const rsw = document.getElementById('rentalKeySwitch');
-  if (rsw) {
-    rsw.addEventListener('change', function() {
-      const container = document.getElementById('hargaRentalContainer');
-      if (container) container.style.display = this.checked ? 'block' : 'none';
+  initParticles();
+  initPasswordToggles();
+  initHamburger();
+
+  const page = document.body.getAttribute('data-page');
+
+  if (page === 'login') {
+    initLoadingScreen(() => {
+      document.getElementById('auth-content')?.classList.remove('hidden');
+      document.getElementById('login-form')?.addEventListener('submit', handleLogin);
+    });
+  }
+
+  if (page === 'register') {
+    initLoadingScreen(() => {
+      document.getElementById('auth-content')?.classList.remove('hidden');
+      document.getElementById('register-form')?.addEventListener('submit', handleRegister);
+    });
+  }
+
+  if (page === 'home') {
+    initLoadingScreen(async () => {
+      document.getElementById('home-content')?.classList.remove('hidden');
+      await initHome();
+    });
+  }
+
+  if (page === 'admin') {
+    initLoadingScreen(async () => {
+      document.getElementById('admin-content')?.classList.remove('hidden');
+      await initAdmin();
+      switchAdminTab('stats');
     });
   }
 });
-
-// ============================================================
-// SWEETALERT HELPERS
-// ============================================================
-function showAlert(type, title, text) {
-  return Swal.fire({ icon: type, title, html: text, confirmButtonText: 'OK' });
-}
-
-function showToast(msg, icon = 'success') {
-  Swal.fire({ toast: true, position: 'top-end', icon, title: msg, showConfirmButton: false, timer: 2500, timerProgressBar: true });
-}

@@ -3,85 +3,92 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Drip Client - Register</title>
+  <title>Drip Client | Register</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="icon" href="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" type="image/jpeg">
 </head>
-<body>
+<body data-page="register">
 
-<canvas id="particles-canvas"></canvas>
+  <canvas id="particle-canvas"></canvas>
 
-<!-- Loading Screen -->
-<div id="loading-screen">
-  <div class="loading-particles" id="loadParticles"></div>
-  <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Drip Client Logo" class="loading-logo-img" onerror="this.style.display='none'">
-  <div class="loading-text-container" id="loadingLetters"></div>
-  <p class="loading-subtitle">Buy Key Platform</p>
-  <div class="loading-bar-container">
-    <div class="loading-bar"></div>
+  <!-- Loading Screen -->
+  <div id="loading-screen">
+    <div class="loading-logo-wrap">
+      <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="loading-logo-img" alt="Drip Client">
+    </div>
+    <div class="loading-title">
+      <span class="letter">D</span><span class="letter">R</span><span class="letter">I</span><span class="letter">P</span>
+      <span class="letter space" style="display:inline-block;width:16px;"></span>
+      <span class="letter">C</span><span class="letter">L</span><span class="letter">I</span><span class="letter">E</span><span class="letter">N</span><span class="letter">T</span>
+    </div>
+    <div class="loading-sub">Create Account</div>
+    <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
   </div>
-</div>
 
-<div class="main-wrapper">
-  <div class="auth-wrapper">
+  <!-- Register Content -->
+  <div id="auth-content" class="auth-page hidden" style="display:flex;">
     <div class="auth-card">
-      <div class="auth-logo-container">
-        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Drip Client" class="auth-logo" onerror="this.style.display='none'">
-      </div>
-      <h1 class="auth-title"><i class="fas fa-user-plus" style="font-size:0.85em;"></i> Buat Akun Baru</h1>
-      <p class="auth-subtitle">Bergabung dengan Drip Client sekarang</p>
-
-      <div class="form-group">
-        <label class="form-label"><i class="fas fa-user" style="margin-right:6px;color:var(--primary);"></i> Username</label>
-        <div class="input-wrapper">
-          <i class="fas fa-user input-icon"></i>
-          <input type="text" class="form-input" id="regUsername" placeholder="Pilih username unik..." maxlength="20" oninput="this.value=sanitizeInput(this.value)">
-        </div>
-        <small id="regUsernameHint" style="color:var(--text-muted);font-family:'Rajdhani',sans-serif;font-size:0.78rem;margin-top:5px;display:block;">Min. 3 karakter, huruf dan angka saja</small>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label"><i class="fas fa-lock" style="margin-right:6px;color:var(--primary);"></i> Password</label>
-        <div class="input-wrapper">
-          <i class="fas fa-lock input-icon"></i>
-          <input type="password" class="form-input has-right-icon" id="regPassword" placeholder="Buat password kuat..." maxlength="50" oninput="checkPasswordStrength(this.value)">
-          <button type="button" class="toggle-password" onclick="togglePw('regPassword','eyeReg1')">
-            <i id="eyeReg1" class="fas fa-eye-slash"></i>
-          </button>
-        </div>
-        <div id="pwStrength" style="margin-top:6px;height:4px;border-radius:2px;background:rgba(255,255,255,0.1);overflow:hidden;">
-          <div id="pwStrengthBar" style="height:100%;width:0%;transition:all 0.4s;border-radius:2px;"></div>
-        </div>
-        <small id="pwStrengthLabel" style="color:var(--text-muted);font-family:'Rajdhani',sans-serif;font-size:0.78rem;margin-top:3px;display:block;"></small>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label"><i class="fas fa-check-circle" style="margin-right:6px;color:var(--primary);"></i> Konfirmasi Password</label>
-        <div class="input-wrapper">
-          <i class="fas fa-check-circle input-icon"></i>
-          <input type="password" class="form-input has-right-icon" id="regPasswordConfirm" placeholder="Ulangi password..." maxlength="50">
-          <button type="button" class="toggle-password" onclick="togglePw('regPasswordConfirm','eyeReg2')">
-            <i id="eyeReg2" class="fas fa-eye-slash"></i>
-          </button>
+      <div class="auth-logo-wrap">
+        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="auth-logo-img" alt="Logo">
+        <div>
+          <div class="auth-brand">DRIP CLIENT</div>
+          <div class="auth-title">Buat <span>Akun Baru</span></div>
         </div>
       </div>
 
-      <button class="btn btn-primary" id="registerBtn" onclick="handleRegister()">
-        <i class="fas fa-rocket"></i> Buat Akun
-      </button>
+      <form id="register-form" autocomplete="off">
+        <!-- Username -->
+        <div class="form-group">
+          <label class="form-label"><i class="fas fa-user"></i> Username</label>
+          <div class="input-wrap">
+            <input type="text" id="reg-username" class="form-input" placeholder="Masukan username (3-20 karakter)" maxlength="20" autocomplete="off" required>
+          </div>
+          <small style="color:var(--gray-400);font-size:11px;margin-top:4px;display:block;">Huruf, angka, dan underscore saja</small>
+        </div>
 
-      <div class="auth-footer">
-        Sudah punya akun? <a href="index.html" class="auth-link">Login Sekarang</a>
+        <!-- Password -->
+        <div class="form-group">
+          <label class="form-label"><i class="fas fa-lock"></i> Password</label>
+          <div class="input-wrap">
+            <input type="password" id="reg-password" class="form-input" placeholder="Minimal 6 karakter" maxlength="50" autocomplete="new-password" required>
+            <button type="button" class="input-icon" data-toggle-pw="reg-password">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="form-group">
+          <label class="form-label"><i class="fas fa-lock"></i> Konfirmasi Password</label>
+          <div class="input-wrap">
+            <input type="password" id="reg-confirm" class="form-input" placeholder="Ulangi password" maxlength="50" autocomplete="new-password" required>
+            <button type="button" class="input-icon" data-toggle-pw="reg-confirm">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary" id="register-btn">
+          <i class="fas fa-user-plus"></i> DAFTAR SEKARANG
+        </button>
+      </form>
+
+      <div class="auth-footer" style="margin-top:20px;">
+        Sudah punya akun? <a href="index.html">Login Sekarang</a>
+      </div>
+
+      <div class="security-badge">
+        <i class="fas fa-shield-alt"></i>
+        <span>Data Aman · Terenkripsi · XSS Protected</span>
       </div>
     </div>
   </div>
-</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.10.5/sweetalert2.all.min.js"></script>
-<script src="script.js"></script>
-<script>
-  initLoadingScreen('register');
-</script>
+  <div id="notify-container" class="custom-notify"></div>
+  <script src="script.js"></script>
+  <style>
+    .hidden { display: none !important; }
+    #auth-content { opacity: 0; animation: fadeInUp 0.7s 0.2s forwards; }
+  </style>
 </body>
 </html>

@@ -3,102 +3,79 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="description" content="Drip Client - Buy Key Platform">
-  <title>Drip Client | Login</title>
+  <title>Drip Client – Login</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-page="login">
+  <canvas id="bg-canvas"></canvas>
+  <div class="bg-overlay"></div>
 
-  <!-- Particle Background -->
-  <canvas id="particle-canvas"></canvas>
-
-  <!-- Loading Screen -->
+  <!-- LOADING SCREEN -->
   <div id="loading-screen">
     <div class="loading-logo-wrap">
       <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="loading-logo-img" alt="Drip Client">
-    </div>
-    <div class="loading-title">
-      <span class="letter">D</span>
-      <span class="letter">R</span>
-      <span class="letter">I</span>
-      <span class="letter">P</span>
-      <span class="letter space" style="display:inline-block;width:16px;"></span>
-      <span class="letter">C</span>
-      <span class="letter">L</span>
-      <span class="letter">I</span>
-      <span class="letter">E</span>
-      <span class="letter">N</span>
-      <span class="letter">T</span>
-    </div>
-    <div class="loading-sub">Buy Key Platform</div>
-    <div class="loading-bar-wrap">
-      <div class="loading-bar"></div>
+      <div class="loading-title"></div>
+      <div class="loading-subtitle">Buy Key · Premium Access</div>
+      <div class="loading-bar-wrap">
+        <div class="loading-bar"></div>
+      </div>
+      <div class="loading-dots">
+        <span></span><span></span><span></span>
+      </div>
     </div>
   </div>
 
-  <!-- Login Content -->
-  <div id="auth-content" class="auth-page hidden" style="display:flex;">
+  <!-- LOGIN PAGE -->
+  <div class="auth-page">
     <div class="auth-card">
-      <div class="auth-logo-wrap">
-        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" class="auth-logo-img" alt="Logo">
-        <div>
-          <div class="auth-brand">DRIP CLIENT</div>
-          <div class="auth-title">Login To <span>Dashboard</span></div>
+      <div class="auth-logo">
+        <img src="https://cdn-uploads.huggingface.co/production/uploads/noauth/8W2qfrJxJ0G0EplunCycM.jpeg" alt="Drip Client">
+        <div class="auth-logo-title">DRIP CLIENT</div>
+      </div>
+      <div class="auth-title">
+        <i class="fas fa-lock" style="color:var(--purple-bright);margin-right:8px;"></i>
+        Login To Dashboard
+      </div>
+
+      <div class="form-group">
+        <label class="form-label"><i class="fas fa-user" style="margin-right:6px;"></i>Username</label>
+        <input type="text" class="form-input" id="login-username" placeholder="Masukan username...">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label"><i class="fas fa-lock" style="margin-right:6px;"></i>Password</label>
+        <div class="input-wrap">
+          <input type="password" class="form-input" id="login-password" placeholder="Masukan password...">
+          <button class="input-eye" id="toggle-login-pass" type="button" title="Tampilkan/Sembunyikan Password">
+            <i class="fas fa-eye"></i>
+          </button>
         </div>
       </div>
 
-      <form id="login-form" autocomplete="off">
-        <!-- Username -->
-        <div class="form-group">
-          <label class="form-label"><i class="fas fa-user"></i> Username</label>
-          <div class="input-wrap">
-            <input type="text" id="login-username" class="form-input" placeholder="Masukan username..." maxlength="20" autocomplete="off" required>
-          </div>
-        </div>
+      <div class="form-check">
+        <input type="checkbox" id="remember-me">
+        <label for="remember-me">Remember Me</label>
+      </div>
 
-        <!-- Password -->
-        <div class="form-group">
-          <label class="form-label"><i class="fas fa-lock"></i> Password</label>
-          <div class="input-wrap">
-            <input type="password" id="login-password" class="form-input" placeholder="Masukan password..." maxlength="50" autocomplete="new-password" required>
-            <button type="button" class="input-icon" data-toggle-pw="login-password">
-              <i class="fas fa-eye"></i>
-            </button>
-          </div>
-        </div>
+      <button class="btn-primary" id="login-btn" type="button">
+        <i class="fas fa-sign-in-alt"></i> LOGIN
+      </button>
 
-        <!-- Remember Me -->
-        <div class="remember-me">
-          <input type="checkbox" id="remember-me">
-          <label for="remember-me">Remember Me</label>
-        </div>
-
-        <!-- Login Button -->
-        <button type="submit" class="btn-primary" id="login-btn">
-          <i class="fas fa-sign-in-alt"></i> LOGIN
-        </button>
-      </form>
-
-      <div class="auth-footer" style="margin-top:20px;">
+      <div class="auth-footer" style="margin-top:16px;">
         Tidak punya akun? <a href="register.html">Daftar Sekarang</a>
       </div>
 
-      <div class="security-badge">
-        <i class="fas fa-shield-alt"></i>
-        <span>Secured · XSS Protected · Encrypted</span>
+      <div style="text-align:center;margin-top:16px;">
+        <a href="admin.html" style="font-size:12px;color:var(--text-muted);text-decoration:none;transition:color 0.2s;">
+          <i class="fas fa-cog" style="margin-right:4px;"></i>Admin Panel
+        </a>
       </div>
     </div>
   </div>
 
-  <!-- Notify Container -->
-  <div id="notify-container" class="custom-notify"></div>
-
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="script.js"></script>
-  <style>
-    .hidden { display: none !important; }
-    #auth-content { opacity: 0; animation: fadeInUp 0.7s 0.2s forwards; }
-  </style>
 </body>
 </html>
